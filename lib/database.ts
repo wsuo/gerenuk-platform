@@ -828,7 +828,7 @@ export class QuestionDB {
 
 export class TrainingRecordDB { 
   private db = getDatabase()
-  async insertRecord(record: Omit<TrainingRecord, 'id' | 'completed_at'>): Promise<number> {
+  async insertRecord(record: Omit<TrainingRecord, 'id'> & { completed_at?: string }): Promise<number> {
     // 转换日期格式为MySQL兼容格式
     let processedStartedAt = record.started_at
     if (processedStartedAt && typeof processedStartedAt === 'string') {
@@ -838,10 +838,19 @@ export class TrainingRecordDB {
       }
     }
     
-    const sql = `INSERT INTO training_records (employee_name, set_id, category_id, answers, score, total_questions, started_at, ip_address, session_duration) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    // 处理完成时间，如果没有提供则使用当前时间
+    let processedCompletedAt = record.completed_at || new Date().toISOString()
+    if (processedCompletedAt && typeof processedCompletedAt === 'string') {
+      const date = new Date(processedCompletedAt)
+      if (!isNaN(date.getTime())) {
+        processedCompletedAt = date.toISOString().slice(0, 19).replace('T', ' ')
+      }
+    }
+    
+    const sql = `INSERT INTO training_records (employee_name, set_id, category_id, answers, score, total_questions, started_at, completed_at, ip_address, session_duration) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     const result = await executeCompatibleRun(sql, [
       record.employee_name, record.set_id, record.category_id || null, record.answers, record.score, 
-      record.total_questions, processedStartedAt, record.ip_address || null, record.session_duration || null
+      record.total_questions, processedStartedAt, processedCompletedAt, record.ip_address || null, record.session_duration || null
     ])
     return result.lastInsertRowid
   }

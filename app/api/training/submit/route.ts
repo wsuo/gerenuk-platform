@@ -107,7 +107,7 @@ export async function POST(request: NextRequest) {
     // 保存答题记录
     const dbStartTime = Date.now()
     
-    // 转换日期格式为MySQL兼容格式
+    // 转换日期格式为MySQL兼容格式  
     const mysqlStartedAt = new Date(startedAt).toISOString().slice(0, 19).replace('T', ' ')
     
     const recordData = {
@@ -118,6 +118,7 @@ export async function POST(request: NextRequest) {
       score,
       total_questions: questions.length,
       started_at: mysqlStartedAt,
+      completed_at: endTime.toISOString(), // 传递完成时间
       ip_address: ip,
       session_duration: sessionDuration
     }
