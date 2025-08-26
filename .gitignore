@@ -89,6 +89,9 @@ coverage/
 tmp/
 temp/
 
+# deployment folder
+deploy/
+
 # local data
 data/
 
