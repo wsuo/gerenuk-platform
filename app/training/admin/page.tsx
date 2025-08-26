@@ -251,7 +251,12 @@ export default function TrainingAdminPage() {
         ...Object.fromEntries(Object.entries(filters).filter(([_, v]) => v !== ''))
       })
       
-      const response = await fetch(`/api/training/export?${params}`)
+      const response = await fetch(`/api/training/export?${params}`, {
+        credentials: 'include', // 包含cookies
+        headers: {
+          'Accept': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        }
+      })
       
       if (response.ok) {
         const blob = await response.blob()
@@ -414,6 +419,28 @@ export default function TrainingAdminPage() {
     const minutes = Math.floor(seconds / 60)
     const remainingSeconds = seconds % 60
     return `${minutes}分${remainingSeconds}秒`
+  }
+
+  const formatDateTime = (dateString: string) => {
+    if (!dateString) return '--'
+    
+    // 创建Date对象并确保使用中国时区显示
+    const date = new Date(dateString)
+    
+    // 检查日期是否有效
+    if (isNaN(date.getTime())) return dateString
+    
+    // 使用中国时区格式化 - Asia/Shanghai
+    return new Intl.DateTimeFormat('zh-CN', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      timeZone: 'Asia/Shanghai',
+      hour12: false
+    }).format(date)
   }
 
   const getScoreColor = (score: number, passed: boolean) => {
@@ -773,16 +800,6 @@ export default function TrainingAdminPage() {
               <Users className="w-5 h-5" />
               考试记录 ({pagination.total})
             </div>
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => handleExport('csv')}
-                disabled={exporting}
-              >
-                导出CSV
-              </Button>
-            </div>
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -854,7 +871,7 @@ export default function TrainingAdminPage() {
                         </td>
                         <td className="p-3">
                           <div className="text-sm">
-                            {new Date(record.completedAt).toLocaleString()}
+                            {formatDateTime(record.completedAt)}
                           </div>
                         </td>
                         <td className="p-3">
@@ -1332,7 +1349,7 @@ export default function TrainingAdminPage() {
                 <div className="space-y-2">
                   <p><span className="font-medium">员工姓名：</span>{deleteRecord.employeeName}</p>
                   <p><span className="font-medium">考试得分：</span>{deleteRecord.score}分</p>
-                  <p><span className="font-medium">完成时间：</span>{new Date(deleteRecord.completedAt).toLocaleString()}</p>
+                  <p><span className="font-medium">完成时间：</span>{formatDateTime(deleteRecord.completedAt)}</p>
                 </div>
               </div>
               
