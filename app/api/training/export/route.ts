@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { trainingRecordDB, questionSetDB } from '@/lib/database'
+import { trainingRecordDB, questionSetDB, examCategoryDB, systemConfigDB } from '@/lib/database'
 import * as XLSX from 'xlsx'
 
 export async function GET(request: NextRequest) {
@@ -10,17 +10,20 @@ export async function GET(request: NextRequest) {
     const employeeName = searchParams.get('employeeName') || undefined
     const setIdParam = searchParams.get('setId')
     const setId = setIdParam && setIdParam !== 'all' ? parseInt(setIdParam) : undefined
+    const categoryIdParam = searchParams.get('categoryId')
+    const categoryId = categoryIdParam && categoryIdParam !== 'all' ? parseInt(categoryIdParam) : undefined
     const minScore = searchParams.get('minScore') ? parseInt(searchParams.get('minScore')!) : undefined
     const maxScore = searchParams.get('maxScore') ? parseInt(searchParams.get('maxScore')!) : undefined
     const dateRange = (searchParams.get('dateRange') as 'today' | 'week' | 'month' | 'all') || 'all'
     const format = searchParams.get('format') || 'xlsx' // 支持 xlsx, csv
     
-    console.log('导出培训数据，筛选条件:', { employeeName, setId, minScore, maxScore, dateRange, format })
+    console.log('导出培训数据，筛选条件:', { employeeName, setId, categoryId, minScore, maxScore, dateRange, format })
     
     // 获取所有符合条件的培训记录 (不分页)
     const records = await trainingRecordDB.findWithFilters({
       employeeName,
       setId,
+      categoryId,
       minScore,
       maxScore,
       dateRange,
@@ -35,36 +38,68 @@ export async function GET(request: NextRequest) {
       )
     }
     
-    // 获取试卷信息映射
-    const questionSets = await questionSetDB.findAll()
+    // 获取试卷信息和类别信息映射
+    const [questionSets, categories] = await Promise.all([
+      questionSetDB.findAll(),
+      examCategoryDB.getActiveCategories()
+    ])
+    
     const setMap = questionSets.reduce((map, set) => {
       map[set.id!] = set
       return map
     }, {} as { [key: number]: any })
     
+    const categoryMap = categories.reduce((map, category) => {
+      map[category.id!] = category
+      return map
+    }, {} as { [key: number]: any })
+    
+    // 获取合格分数线
+    const passScore = await systemConfigDB.getTrainingPassScore()
+    
     // 准备导出数据
     const exportData = records.map((record, index) => {
       const questionSet = setMap[record.set_id]
+      const category = record.category_id ? categoryMap[record.category_id] : null
       const answers = typeof record.answers === 'string' ? JSON.parse(record.answers) : record.answers
       
       // 计算正确题数和错误题数
       const correctCount = answers.filter((a: any) => a.isCorrect).length
       const wrongCount = answers.filter((a: any) => !a.isCorrect).length
       
+      // 格式化时间函数
+      const formatDateTime = (dateString: string) => {
+        if (!dateString) return '未知'
+        const date = new Date(dateString)
+        if (isNaN(date.getTime())) return dateString
+        
+        return new Intl.DateTimeFormat('zh-CN', {
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit',
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit',
+          timeZone: 'Asia/Shanghai',
+          hour12: false
+        }).format(date)
+      }
+      
       return {
         '序号': index + 1,
         '员工姓名': record.employee_name,
+        '考核类别': category?.name || '未分类',
         '试卷名称': questionSet?.name || '未知试卷',
         '试卷ID': record.set_id,
         '得分': record.score,
-        '满分': record.total_questions * 2, // 假设每题2分，满分100分
+        '总题数': record.total_questions,
         '正确题数': correctCount,
         '错误题数': wrongCount,
         '正确率': `${Math.round((correctCount / record.total_questions) * 100)}%`,
-        '是否通过': record.score >= 60 ? '是' : '否',
+        '是否通过': record.score >= passScore ? '通过' : '未通过',
         '答题用时': record.session_duration ? `${Math.floor(record.session_duration / 60)}分${record.session_duration % 60}秒` : '未知',
-        '开始时间': record.started_at ? new Date(record.started_at).toLocaleString('zh-CN') : '未知',
-        '完成时间': record.completed_at ? new Date(record.completed_at).toLocaleString('zh-CN') : '未知',
+        '开始时间': formatDateTime(record.started_at),
+        '完成时间': formatDateTime(record.completed_at),
         'IP地址': record.ip_address || '未知'
       }
     })
@@ -79,17 +114,18 @@ export async function GET(request: NextRequest) {
     const colWidths = [
       { wch: 6 },  // 序号
       { wch: 12 }, // 员工姓名
-      { wch: 20 }, // 试卷名称
+      { wch: 15 }, // 考核类别
+      { wch: 25 }, // 试卷名称
       { wch: 8 },  // 试卷ID
       { wch: 8 },  // 得分
-      { wch: 8 },  // 满分
+      { wch: 8 },  // 总题数
       { wch: 10 }, // 正确题数
       { wch: 10 }, // 错误题数
       { wch: 10 }, // 正确率
       { wch: 10 }, // 是否通过
       { wch: 12 }, // 答题用时
-      { wch: 18 }, // 开始时间
-      { wch: 18 }, // 完成时间
+      { wch: 20 }, // 开始时间
+      { wch: 20 }, // 完成时间
       { wch: 15 }  // IP地址
     ]
     
