@@ -2,6 +2,8 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+修改完代码后不要重启项目
+
 ## Project Overview
 
 This is a Next.js 15 SMS testing tool built with React 19, TypeScript, and shadcn/ui components. The application provides a web interface for testing SMS message delivery through an admin API backend and monitors status via real Aliyun SMS API integration.
