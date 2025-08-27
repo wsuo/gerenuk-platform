@@ -1,5 +1,4 @@
 import { useState, useCallback } from "react"
-import * as Sentry from "@sentry/nextjs"
 import { useToast } from "@/hooks/use-toast"
 
 export interface SmsTemplate {
@@ -100,10 +99,13 @@ export const useSmsTemplates = (): SmsTemplateState & SmsTemplateActions => {
       }
     } catch (error) {
       console.error("获取短信模板失败:", error)
-      Sentry.captureException(error, {
-        tags: { operation: 'fetch_templates' },
-        extra: { isInitial, hasToken: !!(tokenOverride || localStorage.getItem("sms-admin-token")) }
-      })
+      // 仅在开发环境下记录错误详情
+      if (process.env.NODE_ENV === 'development') {
+        console.error('获取短信模板失败:', error, {
+          isInitial, 
+          hasToken: !!(tokenOverride || localStorage.getItem("sms-admin-token"))
+        })
+      }
       setTemplates([])
       if (!isInitial) {
         toast({
@@ -136,10 +138,10 @@ export const useSmsTemplates = (): SmsTemplateState & SmsTemplateActions => {
       }
     } catch (error) {
       console.error("获取模板详情失败:", error)
-      Sentry.captureException(error, {
-        tags: { operation: 'get_template_details' },
-        extra: { templateId }
-      })
+      // 仅在开发环境下记录错误详情
+      if (process.env.NODE_ENV === 'development') {
+        console.error('获取模板详情失败:', error, { templateId })
+      }
     }
     return null
   }, [])

@@ -1,5 +1,4 @@
-import { useCallback } from "react"
-import * as Sentry from "@sentry/nextjs"
+import { useCallback }
 
 export interface UserStateData {
   phoneNumber: string
@@ -47,9 +46,10 @@ export const useUserState = (): UserStateActions => {
       }
     } catch (error) {
       console.error('Failed to restore user state:', error)
-      Sentry.captureException(error, {
-        tags: { operation: 'restore_user_state' }
-      })
+      // 仅在开发环境下记录错误详情
+      if (process.env.NODE_ENV === 'development') {
+        console.error('恢复用户状态失败:', error)
+      }
     }
     return null
   }, [])

@@ -1,5 +1,4 @@
 import { useState, useCallback } from "react"
-import * as Sentry from "@sentry/nextjs"
 import { useToast } from "@/hooks/use-toast"
 
 export interface SmsStatus {
@@ -81,9 +80,10 @@ export const useSmsStatus = (): SmsStatusState & SmsStatusActions => {
       }
     } catch (error) {
       console.error('Failed to load SMS history:', error)
-      Sentry.captureException(error, {
-        tags: { operation: 'load_sms_history' }
-      })
+      // 仅在开发环境下记录错误详情
+      if (process.env.NODE_ENV === 'development') {
+        console.error('加载SMS历史记录失败:', error)
+      }
     } finally {
       setIsLoadingSmsHistory(false)
     }
@@ -238,13 +238,13 @@ export const useSmsStatus = (): SmsStatusState & SmsStatusActions => {
         throw new Error("发送失败")
       }
     } catch (error) {
-      Sentry.captureException(error, {
-        tags: { operation: 'send_sms' },
-        extra: {
+      // 仅在开发环境下记录错误详情
+      if (process.env.NODE_ENV === 'development') {
+        console.error('发送SMS失败:', error, {
           templateId: selectedTemplate?.id,
           phoneNumber: phoneNumber,
-        }
-      })
+        })
+      }
       toast({
         title: "错误",
         description: "短信发送失败，请检查配置和参数",
@@ -331,9 +331,10 @@ export const useSmsStatus = (): SmsStatusState & SmsStatusActions => {
       
     } catch (error) {
       console.error('批量刷新SMS状态失败:', error)
-      Sentry.captureException(error, {
-        tags: { operation: 'refresh_pending_statuses' }
-      })
+      // 仅在开发环境下记录错误详情
+      if (process.env.NODE_ENV === 'development') {
+        console.error('批量刷新SMS状态失败:', error)
+      }
       toast({
         title: "刷新失败",
         description: "无法更新SMS状态，请稍后重试",

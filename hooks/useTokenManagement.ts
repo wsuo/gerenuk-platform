@@ -1,5 +1,4 @@
 import { useState, useCallback } from "react"
-import * as Sentry from "@sentry/nextjs"
 import { useToast } from "@/hooks/use-toast"
 
 export interface TokenState {
@@ -72,10 +71,10 @@ export const useTokenManagement = (): TokenState & TokenActions => {
       }
     } catch (error) {
       console.error("Token刷新异常:", error)
-      Sentry.captureException(error, {
-        tags: { operation: 'token_refresh' },
-        extra: { refreshTokenExists: !!currentRefreshToken }
-      })
+      // 仅在开发环境下记录错误详情
+      if (process.env.NODE_ENV === 'development') {
+        console.error('Token刷新异常:', error, { refreshTokenExists: !!currentRefreshToken })
+      }
     }
     
     return { success: false }
