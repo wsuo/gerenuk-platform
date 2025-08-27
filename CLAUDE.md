@@ -4,6 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 修改完代码后不要重启项目
 
+服务已经部署在线上，部署脚本：deploy/deploy.sh
+服务器为100.72.60.117，端口 2222，用户名 wsuo，已经建立 ssh 密钥对连接
+
 ## Project Overview
 
 This is a Next.js 15 SMS testing tool built with React 19, TypeScript, and shadcn/ui components. The application provides a web interface for testing SMS message delivery through an admin API backend and monitors status via real Aliyun SMS API integration.
