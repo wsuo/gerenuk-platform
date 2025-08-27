@@ -106,8 +106,8 @@ export function PlatformNavigation({ className }: PlatformNavigationProps) {
                 <Settings className="h-4 w-4 text-primary-foreground" />
               </div>
               <div className="hidden sm:block">
-                <h1 className="text-lg font-semibold">智慧管理平台</h1>
-                <p className="text-xs text-muted-foreground">企业一体化管理系统</p>
+                <h1 className="text-lg font-semibold">Gerenuk Platform</h1>
+                <p className="text-xs text-muted-foreground">企业智慧管理平台</p>
               </div>
             </Link>
           </div>
@@ -132,7 +132,7 @@ export function PlatformNavigation({ className }: PlatformNavigationProps) {
                     <div className="h-6 w-6 rounded bg-primary flex items-center justify-center">
                       <Settings className="h-3 w-3 text-primary-foreground" />
                     </div>
-                    <span className="font-semibold">智慧管理平台</span>
+                    <span className="font-semibold">Gerenuk Platform</span>
                   </div>
                 </div>
                 <nav className="flex flex-col gap-2">

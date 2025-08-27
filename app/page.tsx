@@ -187,10 +187,10 @@ export default function ToolboxHomepage() {
             {/* 品牌标题 */}
             <div className="space-y-2">
               <h1 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 bg-clip-text text-transparent animate-pulse">
-                AgriTech Solutions
+                Gerenuk Platform
               </h1>
               <p className="text-base sm:text-lg text-gray-600 font-medium px-4">
-                农业科技智慧管理平台
+                企业智慧管理平台
               </p>
             </div>
           </div>
@@ -256,7 +256,7 @@ export default function ToolboxHomepage() {
                 />
               </div>
               <div>
-                <h1 className="text-lg sm:text-2xl font-bold text-gray-600">智慧管理平台</h1>
+                <h1 className="text-lg sm:text-2xl font-bold text-gray-600">Gerenuk Platform</h1>
                 <p className="text-xs sm:text-sm text-gray-500">长颈羚数字科技</p>
               </div>
             </div>
