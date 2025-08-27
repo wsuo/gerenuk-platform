@@ -190,7 +190,7 @@ export default function ToolboxHomepage() {
                 Gerenuk Platform
               </h1>
               <p className="text-base sm:text-lg text-gray-600 font-medium px-4">
-                企业智慧管理平台
+                企业智慧管理平台 v1.0.1
               </p>
             </div>
           </div>
