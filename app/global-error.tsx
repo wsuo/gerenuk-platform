@@ -1,17 +1,16 @@
 "use client"
 
-import * as Sentry from "@sentry/nextjs";
 import Error from "next/error";
-import { useEffect } from "react";
 
 export default function GlobalError({
   error,
 }: {
   error: Error & { digest?: string };
 }) {
-  useEffect(() => {
-    Sentry.captureException(error);
-  }, [error]);
+  // 仅在开发环境下记录错误详情
+  if (process.env.NODE_ENV === 'development') {
+    console.error('Global error:', error);
+  }
 
   return (
     <html>

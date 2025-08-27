@@ -1,5 +1,5 @@
 {
-  "name": "sms-testing-tool",
+  "name": "gerenuk-platform",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -10,6 +10,8 @@
     "start:build": "npm run build && npm start",
     "lint": "next lint",
     "start": "next start",
+    "start:prod": "NODE_ENV=production next start 2>&1 | node scripts/log-rotator.js",
+    "start:prod:pm2": "pm2 start ecosystem.config.js --env production",
     "migrate:export": "npx tsx scripts/export-sqlite-data.ts",
     "migrate:create-schema": "npx tsx scripts/create-mysql-schema.ts",
     "migrate:data": "npx tsx scripts/migrate-data-to-mysql.ts",
@@ -47,7 +49,6 @@
     "@radix-ui/react-toggle": "1.1.1",
     "@radix-ui/react-toggle-group": "1.1.1",
     "@radix-ui/react-tooltip": "1.1.6",
-    "@sentry/nextjs": "^9.40.0",
     "@types/better-sqlite3": "^7.6.13",
     "@types/nodemailer": "^6.4.17",
     "autoprefixer": "^10.4.20",
