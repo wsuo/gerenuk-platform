@@ -55,7 +55,8 @@ export async function POST(request: NextRequest) {
         description: setDescription,
         category_id: categoryId,
         total_questions: questions.length,
-        is_active: true
+        is_active: true,
+        allow_view_score: categoryId === 6 ? false : true // 面试测试类别不允许查看成绩
       })
       
       setId = existingSet.id!
@@ -66,7 +67,8 @@ export async function POST(request: NextRequest) {
         description: setDescription,
         category_id: categoryId,
         total_questions: questions.length,
-        is_active: true
+        is_active: true,
+        allow_view_score: categoryId === 6 ? false : true // 面试测试类别不允许查看成绩
       })
       console.log(`创建新题库: ID=${setId}`)
     }

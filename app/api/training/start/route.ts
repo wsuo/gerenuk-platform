@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { questionSetDB, questionDB, examCategoryDB } from '@/lib/database'
+import { executeCompatibleSingle } from '@/lib/platform-database'
 
 // Fisher-Yates洗牌算法 - 真正的随机排序
 function shuffleArray<T>(array: T[]): T[] {
@@ -176,11 +177,56 @@ export async function GET(request: NextRequest) {
           } : null
         }
       }))
+
+      // 为每个类别计算统计信息以便排序
+      const categoriesWithStats = await Promise.all(categories.map(async (category) => {
+        const categorySets = setsWithCount.filter(set => set.category?.id === category.id)
+        const totalQuestions = categorySets.reduce((sum, set) => sum + set.questionsCount, 0)
+        
+        // 获取该类别的最新考核记录
+        let latestExamDate = null
+        try {
+          const latestRecord = await executeCompatibleSingle(
+            'SELECT MAX(started_at) as latest_date FROM training_records WHERE category_id = ?',
+            [category.id]
+          )
+          latestExamDate = latestRecord?.latest_date || null
+        } catch (error) {
+          console.error('获取最新考核记录失败:', error)
+        }
+        
+        return {
+          ...category,
+          question_sets_count: categorySets.length,
+          total_questions: totalQuestions,
+          latest_exam_date: latestExamDate
+        }
+      }))
+
+      // 智能排序：有数据的类别优先，然后按最新考核记录排序
+      const sortedCategories = categoriesWithStats.sort((a, b) => {
+        // 1. 有题库数据的优先
+        const aHasData = a.total_questions > 0
+        const bHasData = b.total_questions > 0
+        if (aHasData !== bHasData) {
+          return bHasData ? 1 : -1
+        }
+        
+        // 2. 都有数据或都没有数据时，按最新考核记录排序
+        const aLatest = a.latest_exam_date ? new Date(a.latest_exam_date).getTime() : 0
+        const bLatest = b.latest_exam_date ? new Date(b.latest_exam_date).getTime() : 0
+        if (aLatest !== bLatest) {
+          return bLatest - aLatest // 最新的在前面
+        }
+        
+        // 3. 最后按sort_order排序
+        return (a.sort_order || 999) - (b.sort_order || 999)
+      })
       
       return NextResponse.json({
         success: true,
         data: {
-          categories,
+          categories: sortedCategories,
           questionSets: setsWithCount,
           totalSets: questionSets.length
         }

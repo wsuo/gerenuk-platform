@@ -34,17 +34,30 @@ export async function GET(request: NextRequest) {
     
     for (const question of allQuestions) {
       const emptyOptions = []
+      const hasOptionA = question.option_a && question.option_a.trim() !== ''
+      const hasOptionB = question.option_b && question.option_b.trim() !== ''
+      const hasOptionC = question.option_c && question.option_c.trim() !== ''
+      const hasOptionD = question.option_d && question.option_d.trim() !== ''
       
-      if (!question.option_a || question.option_a.trim() === '') {
+      // 智能检测：如果是两选项题目（只有A、B有值），则认为是正常的
+      const isTwoOptionQuestion = hasOptionA && hasOptionB && !hasOptionC && !hasOptionD
+      
+      if (isTwoOptionQuestion) {
+        // 两选项题目，只要A、B都有值就是正常的
+        continue
+      }
+      
+      // 四选项题目的检查逻辑
+      if (!hasOptionA) {
         emptyOptions.push('A')
       }
-      if (!question.option_b || question.option_b.trim() === '') {
+      if (!hasOptionB) {
         emptyOptions.push('B')
       }
-      if (!question.option_c || question.option_c.trim() === '') {
+      if (!hasOptionC) {
         emptyOptions.push('C')
       }
-      if (!question.option_d || question.option_d.trim() === '') {
+      if (!hasOptionD) {
         emptyOptions.push('D')
       }
       
