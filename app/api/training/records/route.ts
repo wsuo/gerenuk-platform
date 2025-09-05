@@ -87,7 +87,17 @@ export async function GET(request: NextRequest) {
         startedAt: record.started_at,
         completedAt: record.completed_at,
         ipAddress: record.ip_address,
-        answers: typeof record.answers === 'string' ? JSON.parse(record.answers) : record.answers
+        answers: typeof record.answers === 'string' ? JSON.parse(record.answers) : record.answers,
+        // 面试测试专用字段
+        isPersonalityTest: record.is_personality_test || false,
+        personalityTestResult: record.personality_test_result ? 
+          (typeof record.personality_test_result === 'string' ? 
+            JSON.parse(record.personality_test_result) : 
+            record.personality_test_result) : null,
+        personalityScores: record.personality_scores || null,
+        mainTendencies: record.main_tendencies || null,
+        recommendedOccupations: record.recommended_occupations || null,
+        testReport: record.test_report || null
       }
     })
     
