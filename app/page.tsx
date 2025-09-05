@@ -294,7 +294,7 @@ export default function ToolboxHomepage() {
             <span className="text-sm font-medium text-gray-600">选择您需要的工具开始工作</span>
           </div>
           <h2 className="text-4xl font-bold text-gray-600">
-            长颈羚数字化管理工具集
+            长颈羚数字化管理平台
           </h2>
           <p className="text-xl text-gray-600 max-w-2xl mx-auto">
             集成多种专业工具，助力企业数字化转型，提升工作效率

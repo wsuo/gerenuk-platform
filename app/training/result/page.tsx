@@ -30,14 +30,15 @@ interface ExamResult {
   recordId: number
   sessionId: string
   employeeName: string
-  score: number
+  allowViewScore: boolean // 新增：是否允许查看成绩配置
+  score?: number // 改为可选
   totalQuestions: number
-  correctAnswers: number
-  wrongAnswers: number
-  accuracy: number
+  correctAnswers?: number // 改为可选
+  wrongAnswers?: number // 改为可选
+  accuracy?: number // 改为可选
   sessionDuration: number
-  passed: boolean
-  answerDetails: AnswerDetail[]
+  passed?: boolean // 改为可选
+  answerDetails?: AnswerDetail[] // 改为可选
   completedAt: string
 }
 
@@ -196,33 +197,94 @@ export default function TrainingResultPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
       <div className="container mx-auto px-4 py-8 max-w-7xl">
-        {/* 结果概览 */}
-        <div className="text-center mb-8">
-          <div className={`inline-flex items-center justify-center w-20 h-20 rounded-full mb-4 ${
-            result.passed ? 'bg-green-100' : 'bg-red-100'
-          }`}>
-            {result.passed ? (
-              <Award className="w-10 h-10 text-green-600" />
-            ) : (
-              <XCircle className="w-10 h-10 text-red-600" />
-            )}
+        
+        {!result.allowViewScore ? (
+          // 不允许查看成绩的情况 - 只显示完成信息
+          <div className="max-w-2xl mx-auto">
+            <div className="text-center mb-8">
+              <div className="inline-flex items-center justify-center w-20 h-20 rounded-full mb-4 bg-blue-100">
+                <CheckCircle className="w-10 h-10 text-blue-600" />
+              </div>
+              
+              <h1 className="text-3xl font-bold text-gray-900 mb-2">
+                测验已完成
+              </h1>
+              
+              <p className="text-lg text-gray-600 mb-4">
+                感谢您完成本次测验，您的答题记录已保存
+              </p>
+            </div>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <User className="w-5 h-5" />
+                  基本信息
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">姓名</span>
+                  <span className="font-medium">{result.employeeName}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">完成时间</span>
+                  <span className="font-medium">
+                    {new Date(result.completedAt).toLocaleString()}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">题目数量</span>
+                  <span className="font-medium">{result.totalQuestions} 题</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">答题时长</span>
+                  <span className="font-medium">{formatDuration(result.sessionDuration)}</span>
+                </div>
+              </CardContent>
+            </Card>
+
+            <div className="flex justify-center gap-4 mt-8">
+              <Button onClick={handleGoHome} className="flex items-center gap-2">
+                <Home className="w-4 h-4" />
+                返回首页
+              </Button>
+              <Button onClick={handleRetakeExam} variant="outline" className="flex items-center gap-2">
+                <RotateCcw className="w-4 h-4" />
+                重新考试
+              </Button>
+            </div>
           </div>
-          
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">
-            {result.passed ? '恭喜，考试通过！' : '考试未通过'}
-          </h1>
-          
-          <p className="text-lg text-gray-600 mb-4">
-            {result.passed 
-              ? '您已成功完成新员工入职培训考试' 
-              : '建议您继续学习相关知识后重新参加考试'
-            }
-          </p>
-          
-          <Badge className={`text-lg px-4 py-1 ${getScoreBadgeColor(result.score, result.passed)}`}>
-            {result.score} 分
-          </Badge>
-        </div>
+        ) : (
+          // 允许查看成绩的情况 - 显示详细成绩
+          <>
+            {/* 结果概览 */}
+            <div className="text-center mb-8">
+              <div className={`inline-flex items-center justify-center w-20 h-20 rounded-full mb-4 ${
+                result.passed ? 'bg-green-100' : 'bg-red-100'
+              }`}>
+                {result.passed ? (
+                  <Award className="w-10 h-10 text-green-600" />
+                ) : (
+                  <XCircle className="w-10 h-10 text-red-600" />
+                )}
+              </div>
+              
+              <h1 className="text-3xl font-bold text-gray-900 mb-2">
+                {result.passed ? '恭喜，考试通过！' : '考试未通过'}
+              </h1>
+              
+              <p className="text-lg text-gray-600 mb-4">
+                {result.passed 
+                  ? '您已成功完成培训考试' 
+                  : '建议您继续学习相关知识后重新参加考试'
+                }
+              </p>
+              
+              <Badge className={`text-lg px-4 py-1 ${getScoreBadgeColor(result.score!, result.passed!)}`}>
+                {result.score} 分
+              </Badge>
+            </div>
 
         {/* 成绩详情卡片 */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
@@ -546,6 +608,8 @@ export default function TrainingResultPage() {
           <p>考试结果已自动保存，如需重新参加考试或查询历史记录请联系管理员</p>
           <PlatformFooter />
         </div>
+          </>
+        )}
       </div>
     </div>
   )

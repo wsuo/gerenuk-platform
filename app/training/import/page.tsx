@@ -48,6 +48,23 @@ import {
   PowerOff
 } from 'lucide-react'
 
+// 图标组件映射函数
+const getIconComponent = (iconName?: string) => {
+  switch (iconName) {
+    case 'GraduationCap': return GraduationCap
+    case 'Building2': return Building2
+    case 'Award': return Award
+    case 'Shield': return Shield
+    case 'Scale': return Scale
+    case 'Users': return ({ className, style }: any) => (
+      <svg className={className} style={style} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
+      </svg>
+    )
+    default: return BookOpen
+  }
+}
+
 interface ExamCategory {
   id: number
   name: string
@@ -138,6 +155,16 @@ export default function TrainingImportPage() {
   // 题库删除状态
   const [deletingQuestionSet, setDeletingQuestionSet] = useState<any>(null)
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
+  
+  // 题库编辑状态
+  const [editingQuestionSet, setEditingQuestionSet] = useState<any>(null)
+  const [editQuestionSetOpen, setEditQuestionSetOpen] = useState(false)
+  const [editSetFormData, setEditSetFormData] = useState({
+    name: '',
+    description: '',
+    category_id: '',
+    allow_view_score: true
+  })
   
   useEffect(() => {
     if (!authLoading && isAuthenticated) {
@@ -659,6 +686,64 @@ export default function TrainingImportPage() {
     }
   }
   
+  // 编辑题库功能
+  const handleEditQuestionSet = (questionSet: any) => {
+    setEditingQuestionSet(questionSet)
+    setEditSetFormData({
+      name: questionSet.name || '',
+      description: questionSet.description || '',
+      category_id: questionSet.categoryId?.toString() || '',
+      allow_view_score: questionSet.allow_view_score !== false
+    })
+    setEditQuestionSetOpen(true)
+  }
+  
+  const handleSaveQuestionSetEdit = async () => {
+    if (!editingQuestionSet) return
+    
+    setLoading(true)
+    setError('')
+    
+    try {
+      const response = await fetch(`/api/training/sets/${editingQuestionSet.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: editSetFormData.name,
+          description: editSetFormData.description,
+          category_id: parseInt(editSetFormData.category_id),
+          allow_view_score: editSetFormData.allow_view_score
+        })
+      })
+      
+      const result = await response.json()
+      
+      if (result.success) {
+        setSuccess(`题库 "${editSetFormData.name}" 已更新`)
+        setEditQuestionSetOpen(false)
+        setEditingQuestionSet(null)
+        loadInitialData() // 重新加载数据
+      } else {
+        setError(result.message || '保存失败')
+      }
+    } catch (error) {
+      setError('网络请求失败')
+    } finally {
+      setLoading(false)
+    }
+  }
+  
+  const closeEditQuestionSetDialog = () => {
+    setEditQuestionSetOpen(false)
+    setEditingQuestionSet(null)
+    setEditSetFormData({
+      name: '',
+      description: '',
+      category_id: '',
+      allow_view_score: true
+    })
+  }
+  
   if (authLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-50 via-emerald-100 to-gray-50 flex items-center justify-center">
@@ -1056,6 +1141,15 @@ export default function TrainingImportPage() {
                               >
                                 <Eye className="w-4 h-4 mr-1" />
                                 查看
+                              </Button>
+                              <Button 
+                                variant="outline" 
+                                size="sm"
+                                onClick={() => handleEditQuestionSet(set)}
+                                className="flex-shrink-0"
+                              >
+                                <Edit className="w-4 h-4 mr-1" />
+                                编辑
                               </Button>
                               <Button
                                 variant="outline"
@@ -1479,6 +1573,98 @@ export default function TrainingImportPage() {
                 <Button variant="outline" onClick={closeQuestionSetDetails}>
                   <X className="w-4 h-4 mr-2" />
                   关闭
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+          
+          {/* 编辑题库对话框 */}
+          <Dialog open={editQuestionSetOpen} onOpenChange={setEditQuestionSetOpen}>
+            <DialogContent className="sm:max-w-[600px]">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  <Edit className="w-5 h-5" />
+                  编辑题库
+                </DialogTitle>
+                <DialogDescription>
+                  修改题库的基本信息和配置选项
+                </DialogDescription>
+              </DialogHeader>
+              
+              <div className="space-y-4 py-4">
+                {/* 题库名称 */}
+                <div className="space-y-2">
+                  <Label htmlFor="edit-set-name">题库名称</Label>
+                  <Input
+                    id="edit-set-name"
+                    value={editSetFormData.name}
+                    onChange={(e) => setEditSetFormData(prev => ({ ...prev, name: e.target.value }))}
+                    placeholder="请输入题库名称"
+                  />
+                </div>
+                
+                {/* 题库描述 */}
+                <div className="space-y-2">
+                  <Label htmlFor="edit-set-description">题库描述</Label>
+                  <Textarea
+                    id="edit-set-description"
+                    value={editSetFormData.description}
+                    onChange={(e) => setEditSetFormData(prev => ({ ...prev, description: e.target.value }))}
+                    placeholder="请输入题库描述"
+                    rows={3}
+                  />
+                </div>
+                
+                {/* 考核类别 */}
+                <div className="space-y-2">
+                  <Label htmlFor="edit-set-category">考核类别</Label>
+                  <Select value={editSetFormData.category_id} onValueChange={(value) => setEditSetFormData(prev => ({ ...prev, category_id: value }))}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="选择考核类别" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {categories.map((category) => (
+                        <SelectItem key={category.id} value={category.id!.toString()}>
+                          <div className="flex items-center gap-2">
+                            {React.createElement(getIconComponent(category.icon), { className: 'w-4 h-4', style: { color: category.color } })}
+                            <span>{category.name}</span>
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                {/* 成绩查看配置 */}
+                <div className="flex items-center justify-between space-x-2 p-3 border rounded-lg bg-gray-50">
+                  <div className="flex flex-col">
+                    <Label htmlFor="edit-allow-view-score" className="text-sm font-medium">
+                      允许查看成绩详情
+                    </Label>
+                    <p className="text-sm text-muted-foreground">
+                      关闭后，用户完成考试只能看到"已完成"状态，无法查看具体分数和答题详情
+                    </p>
+                  </div>
+                  <Switch
+                    id="edit-allow-view-score"
+                    checked={editSetFormData.allow_view_score}
+                    onCheckedChange={(checked) => setEditSetFormData(prev => ({ ...prev, allow_view_score: checked }))}
+                  />
+                </div>
+              </div>
+              
+              <DialogFooter>
+                <Button variant="outline" onClick={closeEditQuestionSetDialog}>
+                  <X className="w-4 h-4 mr-2" />
+                  取消
+                </Button>
+                <Button onClick={handleSaveQuestionSetEdit} disabled={loading}>
+                  {loading ? (
+                    <RefreshCw className="w-4 h-4 animate-spin mr-2" />
+                  ) : (
+                    <Save className="w-4 h-4 mr-2" />
+                  )}
+                  {loading ? '保存中...' : '保存'}
                 </Button>
               </DialogFooter>
             </DialogContent>
