@@ -181,6 +181,7 @@ export interface ExamCategory {
   color?: string
   sort_order?: number
   is_active?: boolean
+  allow_view_score?: boolean
   created_at?: string
   updated_at?: string
 }
@@ -192,6 +193,7 @@ export interface QuestionSet {
   category_id?: number
   total_questions: number
   is_active?: boolean
+  allow_view_score?: boolean
   created_at?: string
   updated_at?: string
 }
@@ -223,6 +225,13 @@ export interface TrainingRecord {
   completed_at?: string
   ip_address?: string
   session_duration?: number
+  // 面试测试专用字段
+  is_personality_test?: boolean
+  personality_test_result?: string | null
+  personality_scores?: string | null
+  main_tendencies?: string | null
+  recommended_occupations?: string | null
+  test_report?: string | null
 }
 
 export interface AnswerItem {
@@ -635,19 +644,20 @@ export class ExamCategoryDB {
   }
   
   async insertCategory(category: Omit<ExamCategory, 'id' | 'created_at' | 'updated_at'>): Promise<number> {
-    const sql = `INSERT INTO exam_categories (name, description, icon, color, sort_order, is_active) VALUES (?, ?, ?, ?, ?, ?)`
+    const sql = `INSERT INTO exam_categories (name, description, icon, color, sort_order, is_active, allow_view_score) VALUES (?, ?, ?, ?, ?, ?, ?)`
     const result = await executeCompatibleRun(sql, [
       category.name, 
       category.description || null, 
       category.icon || 'BookOpen',
       category.color || '#3b82f6',
       category.sort_order || 0,
-      category.is_active ?? true
+      category.is_active ?? true,
+      category.allow_view_score ?? true
     ])
     return result.lastInsertRowid
   }
   
-  async updateCategory(id: number, updates: Partial<Pick<ExamCategory, 'name' | 'description' | 'icon' | 'color' | 'sort_order' | 'is_active'>>): Promise<boolean> {
+  async updateCategory(id: number, updates: Partial<Pick<ExamCategory, 'name' | 'description' | 'icon' | 'color' | 'sort_order' | 'is_active' | 'allow_view_score'>>): Promise<boolean> {
     const updateFields: string[] = []
     const values: any[] = []
     
@@ -754,18 +764,19 @@ export class QuestionSetDB {
   }
 
   async insertQuestionSet(set: Omit<QuestionSet, 'id' | 'created_at' | 'updated_at'>): Promise<number> {
-    const sql = `INSERT INTO question_sets (name, description, category_id, total_questions, is_active) VALUES (?, ?, ?, ?, ?)`
+    const sql = `INSERT INTO question_sets (name, description, category_id, total_questions, is_active, allow_view_score) VALUES (?, ?, ?, ?, ?, ?)`
     const result = await executeCompatibleRun(sql, [
       set.name, 
       set.description || null, 
       set.category_id || null,
       set.total_questions,
-      set.is_active ?? true
+      set.is_active ?? true,
+      set.allow_view_score ?? true
     ])
     return result.lastInsertRowid
   }
 
-  async updateQuestionSet(id: number, updates: Partial<Pick<QuestionSet, 'name' | 'description' | 'category_id' | 'total_questions' | 'is_active'>>): Promise<boolean> {
+  async updateQuestionSet(id: number, updates: Partial<Pick<QuestionSet, 'name' | 'description' | 'category_id' | 'total_questions' | 'is_active' | 'allow_view_score'>>): Promise<boolean> {
     const updateFields: string[] = []
     const values: any[] = []
     
@@ -847,10 +858,30 @@ export class TrainingRecordDB {
       }
     }
     
-    const sql = `INSERT INTO training_records (employee_name, set_id, category_id, answers, score, total_questions, started_at, completed_at, ip_address, session_duration) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    const sql = `INSERT INTO training_records (
+      employee_name, set_id, category_id, answers, score, total_questions, 
+      started_at, completed_at, ip_address, session_duration,
+      is_personality_test, personality_test_result, personality_scores, 
+      main_tendencies, recommended_occupations, test_report
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    
     const result = await executeCompatibleRun(sql, [
-      record.employee_name, record.set_id, record.category_id || null, record.answers, record.score, 
-      record.total_questions, processedStartedAt, processedCompletedAt, record.ip_address || null, record.session_duration || null
+      record.employee_name, 
+      record.set_id, 
+      record.category_id || null, 
+      record.answers, 
+      record.score, 
+      record.total_questions, 
+      processedStartedAt, 
+      processedCompletedAt, 
+      record.ip_address || null, 
+      record.session_duration || null,
+      record.is_personality_test || false,
+      record.personality_test_result || null,
+      record.personality_scores || null,
+      record.main_tendencies || null,
+      record.recommended_occupations || null,
+      record.test_report || null
     ])
     return result.lastInsertRowid
   }
