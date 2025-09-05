@@ -38,6 +38,8 @@ export async function middleware(request: NextRequest) {
       '/api/training/import-html', // HTML导入
       '/api/public-config', // 公开配置查询（考试时间限制等）
       '/api/migrate/exam-categories', // 允许迁移API
+      '/api/migrate/score-config', // 成绩查看配置迁移API
+      '/api/admin/questions/check-empty', // 数据质量检查API（测试用）
       '/api/fix-db', // 数据库修复API
       '/api/test', // 测试API
       '/api/auth/send-verification', // 管理员验证码发送
