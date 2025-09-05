@@ -12,6 +12,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { CheckCircle, Clock, User, BookOpen, AlertCircle, ArrowLeft, ArrowRight, GraduationCap, MousePointer2, X, Info } from 'lucide-react'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Label } from '@/components/ui/label'
+import { PERSONALITY_TEST_SET_ID, PERSONALITY_TEST_CATEGORY_ID } from '@/lib/personality-test-config'
 
 interface ExamData {
   sessionId: string
@@ -52,6 +53,7 @@ export default function TrainingExamPage() {
   const [error, setError] = useState('')
   const [showConfirmSubmit, setShowConfirmSubmit] = useState(false)
   const [showDoubleClickTip, setShowDoubleClickTip] = useState(true)
+  const [isSubmissionCompleted, setIsSubmissionCompleted] = useState(false) // 新增提交完成标记
   
   // 隐藏的作弊功能状态
   const [secretClickCount, setSecretClickCount] = useState(0)
@@ -59,18 +61,25 @@ export default function TrainingExamPage() {
   
   const router = useRouter()
 
-  // 页面离开时清空答题数据
-  useEffect(() => {
-    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+  // 检查是否为面试测试（职业性格测验）
+  const isPersonalityTest = examData?.questionSet?.id === PERSONALITY_TEST_SET_ID || 
+                           examData?.category?.id === PERSONALITY_TEST_CATEGORY_ID
+
+  // beforeunload处理函数
+  const handleBeforeUnload = useCallback((e: BeforeUnloadEvent) => {
+    if (!isSubmissionCompleted) { // 只有在未完成提交时才显示提示
       e.preventDefault()
       e.returnValue = ''
       return ''
     }
+  }, [isSubmissionCompleted])
 
+  // 页面离开时清空答题数据
+  useEffect(() => {
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'hidden') {
         // 页面隐藏时清空答题数据
-        if (examData) {
+        if (examData && !isSubmissionCompleted) {
           localStorage.removeItem('trainingExamData')
           localStorage.removeItem(`exam-answers-${examData.sessionId}`)
         }
@@ -85,7 +94,7 @@ export default function TrainingExamPage() {
       window.removeEventListener('beforeunload', handleBeforeUnload)
       document.removeEventListener('visibilitychange', handleVisibilityChange)
     }
-  }, [examData])
+  }, [examData, handleBeforeUnload, isSubmissionCompleted])
 
   // 加载考试数据
   useEffect(() => {
@@ -180,6 +189,9 @@ export default function TrainingExamPage() {
       const result = await response.json()
 
       if (result.success) {
+        // 标记提交完成，允许无提示离开页面
+        setIsSubmissionCompleted(true)
+        
         // 保存结果到localStorage
         localStorage.setItem('examResult', JSON.stringify({
           ...result.data,
@@ -190,8 +202,14 @@ export default function TrainingExamPage() {
         localStorage.removeItem('trainingExamData')
         localStorage.removeItem(`exam-answers-${examData.sessionId}`)
         
-        // 跳转到结果页面
-        router.push('/training/result')
+        // 根据配置决定跳转页面
+        const targetPath = result.data.allowViewScore ? '/training/result' : '/training/complete'
+        console.log(`自动提交后根据配置跳转到: ${targetPath}`)
+        
+        // 短暂延迟确保状态更新后跳转
+        setTimeout(() => {
+          window.location.href = targetPath
+        }, 100)
       } else {
         setError(result.message || '自动提交失败')
       }
@@ -201,7 +219,7 @@ export default function TrainingExamPage() {
     } finally {
       setIsSubmitting(false)
     }
-  }, [examData, isSubmitting, answers, router])
+  }, [examData, isSubmitting, answers])
 
   // 计时器和倒计时
   useEffect(() => {
@@ -327,6 +345,9 @@ export default function TrainingExamPage() {
       if (result.success) {
         console.log('提交成功，准备跳转...')
         
+        // 标记提交完成，允许无提示离开页面
+        setIsSubmissionCompleted(true)
+        
         // 保存结果到localStorage
         localStorage.setItem('examResult', JSON.stringify(result.data))
         
@@ -334,10 +355,13 @@ export default function TrainingExamPage() {
         localStorage.removeItem('trainingExamData')
         localStorage.removeItem(`exam-answers-${examData.sessionId}`)
         
-        // 确保状态更新后再跳转
+        // 根据配置决定跳转页面
+        const targetPath = result.data.allowViewScore ? '/training/result' : '/training/complete'
+        console.log(`根据配置跳转到: ${targetPath}`)
+        
+        // 短暂延迟确保状态更新后跳转
         setTimeout(() => {
-          console.log('执行页面跳转到结果页面')
-          router.push('/training/result')
+          window.location.href = targetPath
         }, 100)
       } else {
         console.error('提交失败:', result.message)
@@ -686,6 +710,23 @@ export default function TrainingExamPage() {
                     </Alert>
                   )}
 
+                  {/* 面试测试特殊提示 */}
+                  {isPersonalityTest && (
+                    <Alert className="border-purple-200 bg-purple-50/90 backdrop-blur-sm shadow-lg">
+                      <div className="flex items-start gap-3">
+                        <Info className="w-5 h-5 text-purple-600 mt-0.5 flex-shrink-0" />
+                        <div className="flex-1">
+                          <AlertDescription className="text-purple-800">
+                            <strong className="font-medium">面试测试特别提醒：</strong>
+                            <br />
+                            本次为职业性格测评，共 {examData?.questions.length} 道题目。
+                            <strong className="text-purple-900">必须完成所有题目才能提交</strong>，请根据自身情况如实作答。
+                          </AlertDescription>
+                        </div>
+                      </div>
+                    </Alert>
+                  )}
+
                   {/* 当前题目 */}
                   <Card className="bg-white/95 backdrop-blur-xl border-emerald-200/50 shadow-lg">
                     <CardHeader>
@@ -715,7 +756,7 @@ export default function TrainingExamPage() {
                           { key: 'B', text: currentQuestion.optionB },
                           { key: 'C', text: currentQuestion.optionC },
                           { key: 'D', text: currentQuestion.optionD }
-                        ].map(option => {
+                        ].filter(option => option.text && option.text.trim() !== '').map(option => {
                           const isSelected = answers[currentQuestion.id] === option.key
                           return (
                             <div 
@@ -806,11 +847,25 @@ export default function TrainingExamPage() {
                             <h3 className="font-semibold text-orange-900 mb-2">
                               确认提交试卷
                             </h3>
-                            <p className="text-orange-800 mb-4">
-                              您已完成 {answeredCount} / {examData.questions.length} 道题目。
-                              {!isAllAnswered && '请注意：还有题目未作答，提交后将按错误计分。'}
-                              提交后将无法修改答案，请确认是否提交？
-                            </p>
+                            
+                            {/* 面试测试的特殊提示 */}
+                            {isPersonalityTest && !isAllAnswered ? (
+                              <div className="mb-4">
+                                <Alert variant="destructive" className="border-red-300 bg-red-50">
+                                  <X className="w-4 h-4" />
+                                  <AlertDescription className="text-red-800">
+                                    <strong>面试测试要求：</strong>必须完成所有 {examData?.questions.length} 道题目才能提交。
+                                    您还有 <strong>{examData?.questions.length - answeredCount}</strong> 道题未作答。
+                                  </AlertDescription>
+                                </Alert>
+                              </div>
+                            ) : (
+                              <p className="text-orange-800 mb-4">
+                                您已完成 {answeredCount} / {examData.questions.length} 道题目。
+                                {!isAllAnswered && '请注意：还有题目未作答，提交后将按错误计分。'}
+                                提交后将无法修改答案，请确认是否提交？
+                              </p>
+                            )}
                             
                             {error && (
                               <Alert variant="destructive" className="mb-4">
@@ -819,15 +874,25 @@ export default function TrainingExamPage() {
                             )}
                             
                             <div className="flex flex-col sm:flex-row items-center gap-3">
+                              {/* 面试测试未完成时禁用提交按钮 */}
                               <Button
                                 onClick={handleSubmit}
-                                disabled={isSubmitting}
-                                className="w-full sm:w-auto flex items-center gap-2 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600"
+                                disabled={isSubmitting || (isPersonalityTest && !isAllAnswered)}
+                                className={`w-full sm:w-auto flex items-center gap-2 ${
+                                  isPersonalityTest && !isAllAnswered 
+                                    ? 'bg-gray-400 cursor-not-allowed' 
+                                    : 'bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600'
+                                }`}
                               >
                                 {isSubmitting ? (
                                   <>
                                     <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
                                     正在提交...
+                                  </>
+                                ) : isPersonalityTest && !isAllAnswered ? (
+                                  <>
+                                    <X className="w-4 h-4" />
+                                    请完成所有题目
                                   </>
                                 ) : (
                                   <>
