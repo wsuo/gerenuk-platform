@@ -63,6 +63,13 @@ interface TrainingRecord {
   completedAt: string
   ipAddress?: string
   answers?: any[]
+  // 面试测试专用字段
+  isPersonalityTest?: boolean
+  personalityTestResult?: any
+  personalityScores?: any
+  mainTendencies?: string
+  recommendedOccupations?: string
+  testReport?: string
 }
 
 interface ExamCategory {
@@ -104,6 +111,22 @@ interface QuestionSet {
 }
 
 export default function TrainingAdminPage() {
+  // 性格倾向名称映射函数
+  const getTendencyName = (tendencyId: string): string => {
+    const tendencyNames: { [key: string]: string } = {
+      "T1": "变化倾向",
+      "T2": "重复倾向", 
+      "T3": "服从倾向",
+      "T4": "独立倾向",
+      "T5": "协作倾向",
+      "T6": "主导倾向",
+      "T7": "机警倾向",
+      "T8": "表现倾向",
+      "T9": "严谨倾向"
+    }
+    return tendencyNames[tendencyId] || tendencyId
+  }
+
   const { isAuthenticated, isLoading: authLoading } = useAuth()
   const [showAuthDialog, setShowAuthDialog] = useState(false)
   
@@ -955,32 +978,154 @@ export default function TrainingAdminPage() {
                   <p className="text-sm text-muted-foreground">姓名</p>
                   <p className="font-medium">{selectedRecord.employeeName}</p>
                 </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">得分</p>
-                  <p className={`font-bold text-lg ${getScoreColor(selectedRecord.score, selectedRecord.passed)}`}>
-                    {selectedRecord.score}分
-                  </p>
-                </div>
+                {selectedRecord.isPersonalityTest ? (
+                  <div className="col-span-2">
+                    <p className="text-sm text-muted-foreground">主要性格倾向</p>
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {selectedRecord.mainTendencies ? 
+                        selectedRecord.mainTendencies.split(',').slice(0, 2).map((tendency, index) => (
+                          <Badge key={`basic-info-${tendency.trim()}-${index}`} variant="default" className="text-xs">
+                            {tendency.trim()}
+                          </Badge>
+                        )) : (
+                          <span className="text-sm text-gray-500">数据解析中...</span>
+                        )
+                      }
+                    </div>
+                  </div>
+                ) : (
+                  <div>
+                    <p className="text-sm text-muted-foreground">得分</p>
+                    <p className={`font-bold text-lg ${getScoreColor(selectedRecord.score, selectedRecord.passed)}`}>
+                      {selectedRecord.score}分
+                    </p>
+                  </div>
+                )}
                 <div>
                   <p className="text-sm text-muted-foreground">用时</p>
                   <p className="font-medium">{formatDuration(selectedRecord.sessionDuration)}</p>
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">状态</p>
-                  <Badge variant={selectedRecord.passed ? "default" : "destructive"}>
-                    {selectedRecord.passed ? '通过' : '未通过'}
+                  <Badge variant={selectedRecord.isPersonalityTest ? "default" : (selectedRecord.passed ? "default" : "destructive")}>
+                    {selectedRecord.isPersonalityTest ? '已完成' : (selectedRecord.passed ? '通过' : '未通过')}
                   </Badge>
                 </div>
               </div>
 
-              {/* 答题详情 */}
+              {/* 答题详情或面试测试报告 */}
               <div className="space-y-6">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-lg font-semibold">答题详情分析</h3>
-                  <div className="text-sm text-muted-foreground">
-                    共 {selectedRecord.answers?.length || 0} 题
+                {/* 面试测试报告展示 */}
+                {selectedRecord.isPersonalityTest ? (
+                  <div className="space-y-6">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-lg font-semibold">面试测试报告</h3>
+                      <Badge variant="outline" className="bg-emerald-50 border-emerald-200 text-emerald-700">
+                        职业性格测验
+                      </Badge>
+                    </div>
+                    
+                    {/* 性格倾向概览 */}
+                    {selectedRecord.personalityScores && (
+                      <Card>
+                        <CardHeader>
+                          <CardTitle className="text-base">性格倾向得分概览</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            {(() => {
+                              try {
+                                const scores = typeof selectedRecord.personalityScores === 'string' 
+                                  ? JSON.parse(selectedRecord.personalityScores)
+                                  : selectedRecord.personalityScores;
+                                
+                                return Object.entries(scores || {}).map(([tendencyId, score]) => (
+                                  <div key={tendencyId} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                                    <span className="font-medium">{getTendencyName(tendencyId)}</span>
+                                    <Badge variant="secondary">{score} 分</Badge>
+                                  </div>
+                                ));
+                              } catch (error) {
+                                console.error('解析性格得分数据失败:', error);
+                                return (
+                                  <div className="p-3 bg-red-50 rounded-lg text-red-600">
+                                    数据解析失败
+                                  </div>
+                                );
+                              }
+                            })()}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )}
+                    
+                    {/* 主要性格倾向 */}
+                    {selectedRecord.mainTendencies && (
+                      <Card>
+                        <CardHeader>
+                          <CardTitle className="text-base">主要性格倾向</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="flex flex-wrap gap-2">
+                            {selectedRecord.mainTendencies.split(',').map((tendency, index) => (
+                              <Badge key={`tendency-${tendency.trim()}-${index}`} variant="default" className="px-3 py-1">
+                                {tendency.trim()}
+                              </Badge>
+                            ))}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )}
+                    
+                    {/* 推荐职业 */}
+                    {selectedRecord.recommendedOccupations && (
+                      <Card>
+                        <CardHeader>
+                          <CardTitle className="text-base">推荐职业方向</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
+                            {selectedRecord.recommendedOccupations.split(',').slice(0, 20).map((occupation, index) => (
+                              <div key={`occupation-${occupation.trim()}-${index}`} className="p-2 bg-blue-50 rounded text-center text-sm">
+                                {occupation.trim()}
+                              </div>
+                            ))}
+                            {selectedRecord.recommendedOccupations.split(',').length > 20 && (
+                              <div key="more-occupations" className="p-2 bg-gray-100 rounded text-center text-sm text-gray-500">
+                                等共{selectedRecord.recommendedOccupations.split(',').length}个职业...
+                              </div>
+                            )}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )}
+                    
+                    {/* 完整报告 */}
+                    {selectedRecord.testReport && (
+                      <Card>
+                        <CardHeader>
+                          <CardTitle className="text-base">完整性格测验报告</CardTitle>
+                          <CardDescription>标准化的性格倾向分析报告</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="bg-gray-50 rounded-lg p-4 max-h-96 overflow-y-auto">
+                            <pre className="text-sm whitespace-pre-wrap font-mono leading-relaxed">
+                              {selectedRecord.testReport}
+                            </pre>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )}
                   </div>
-                </div>
+                ) : (
+                  // 传统考试答题详情
+                  <div className="space-y-6">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-lg font-semibold">答题详情分析</h3>
+                      <div className="text-sm text-muted-foreground">
+                        共 {selectedRecord.answers?.length || 0} 题
+                      </div>
+                    </div>
                 
                 {/* 题目列表 - 采用卡片布局 */}
                 <div className="space-y-6">
@@ -1116,6 +1261,8 @@ export default function TrainingAdminPage() {
                     </Card>
                   )}
                 </div>
+                  </div>
+                )}
               </div>
             </div>
           )}

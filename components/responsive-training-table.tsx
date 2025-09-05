@@ -23,6 +23,10 @@ interface TrainingRecord {
   completedAt: string
   ipAddress: string
   answers: any[]
+  // 面试测试专用字段
+  isPersonalityTest?: boolean
+  mainTendencies?: string
+  recommendedOccupations?: string
 }
 
 interface ResponsiveTrainingTableProps {
@@ -110,16 +114,35 @@ export function ResponsiveTrainingTable({
                   </div>
                 </td>
                 <td className="p-3">
-                  <div className={`text-lg font-bold ${getScoreColor(record.score, record.passed)}`}>
-                    {record.score}
-                  </div>
-                  <div className="text-xs text-muted-foreground">
-                    / {record.totalQuestions} 题
-                  </div>
+                  {record.isPersonalityTest ? (
+                    <div className="space-y-1">
+                      <div className="text-sm font-medium text-emerald-700">性格测验</div>
+                      {record.mainTendencies ? (
+                        <div className="flex flex-wrap gap-1">
+                          {record.mainTendencies.split(',').slice(0, 2).map((tendency, index) => (
+                            <Badge key={`desktop-${tendency.trim()}-${index}`} variant="outline" className="text-xs bg-emerald-50 border-emerald-200 text-emerald-700">
+                              {tendency.trim()}
+                            </Badge>
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="text-xs text-gray-500">解析中...</span>
+                      )}
+                    </div>
+                  ) : (
+                    <>
+                      <div className={`text-lg font-bold ${getScoreColor(record.score, record.passed)}`}>
+                        {record.score}
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        / {record.totalQuestions} 题
+                      </div>
+                    </>
+                  )}
                 </td>
                 <td className="p-3">
-                  <Badge variant={record.passed ? "default" : "destructive"}>
-                    {record.passed ? "通过" : "未通过"}
+                  <Badge variant={record.isPersonalityTest ? "default" : (record.passed ? "default" : "destructive")}>
+                    {record.isPersonalityTest ? "已完成" : (record.passed ? "通过" : "未通过")}
                   </Badge>
                 </td>
                 <td className="p-3 text-sm">
@@ -169,8 +192,8 @@ export function ResponsiveTrainingTable({
                     <h3 className="font-medium truncate">{record.employeeName}</h3>
                     <p className="text-sm text-muted-foreground">ID: {record.id}</p>
                   </div>
-                  <Badge variant={record.passed ? "default" : "destructive"} className="ml-2">
-                    {record.passed ? "通过" : "未通过"}
+                  <Badge variant={record.isPersonalityTest ? "default" : (record.passed ? "default" : "destructive")} className="ml-2">
+                    {record.isPersonalityTest ? "已完成" : (record.passed ? "通过" : "未通过")}
                   </Badge>
                 </div>
 
@@ -189,13 +212,32 @@ export function ResponsiveTrainingTable({
                 {/* 成绩和时间信息 */}
                 <div className="grid grid-cols-2 gap-4 text-sm">
                   <div>
-                    <div className="text-muted-foreground mb-1">得分</div>
-                    <div className="font-semibold">
-                      {record.score}/{record.totalQuestions}
-                      <span className="ml-2 text-xs text-muted-foreground">
-                        ({Math.round((record.score / record.totalQuestions) * 100)}%)
-                      </span>
-                    </div>
+                    {record.isPersonalityTest ? (
+                      <>
+                        <div className="text-muted-foreground mb-1">主要性格倾向</div>
+                        <div className="space-y-1">
+                          {record.mainTendencies ? 
+                            record.mainTendencies.split(',').slice(0, 2).map((tendency, index) => (
+                              <Badge key={`mobile-${tendency.trim()}-${index}`} variant="outline" className="text-xs bg-emerald-50 border-emerald-200 text-emerald-700 mr-1">
+                                {tendency.trim()}
+                              </Badge>
+                            )) : (
+                              <span className="text-xs text-gray-500">解析中...</span>
+                            )
+                          }
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div className="text-muted-foreground mb-1">得分</div>
+                        <div className="font-semibold">
+                          {record.score}/{record.totalQuestions}
+                          <span className="ml-2 text-xs text-muted-foreground">
+                            ({Math.round((record.score / record.totalQuestions) * 100)}%)
+                          </span>
+                        </div>
+                      </>
+                    )}
                   </div>
                   <div>
                     <div className="text-muted-foreground mb-1">用时</div>
