@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { questionDB, trainingRecordDB, systemConfigDB } from '@/lib/database'
+import { questionDB, questionSetDB, examCategoryDB, trainingRecordDB, systemConfigDB } from '@/lib/database'
+import { calculatePersonalityTest, generatePersonalityReport } from '@/lib/personality-test-analyzer'
+import { PERSONALITY_TEST_SET_ID, PERSONALITY_TEST_CATEGORY_ID } from '@/lib/personality-test-config'
 
 interface AnswerItem {
   questionId: number
@@ -62,37 +64,95 @@ export async function POST(request: NextRequest) {
       )
     }
     
+    // 获取题库和考核类别的成绩查看配置
+    const configStartTime = Date.now()
+    const questionSet = await questionSetDB.findById(setId)
+    let allowViewScore = true // 默认允许查看成绩
+    
+    if (questionSet) {
+      // 检查题库级别的配置
+      allowViewScore = questionSet.allow_view_score !== false
+      
+      // 如果题库允许查看，进一步检查类别级别的配置
+      if (allowViewScore && categoryId) {
+        const category = await examCategoryDB.findById(categoryId)
+        if (category) {
+          allowViewScore = category.allow_view_score !== false
+        }
+      }
+    }
+    
+    console.log(`查询成绩配置耗时: ${Date.now() - configStartTime}ms, 是否允许查看: ${allowViewScore}`)
+    
+    // 判断是否为面试测试
+    const isPersonalityTest = setId === PERSONALITY_TEST_SET_ID || categoryId === PERSONALITY_TEST_CATEGORY_ID
+    console.log(`是否为面试测试: ${isPersonalityTest}`)
+    
     // 评分处理
     const scoringStartTime = Date.now()
     const answerResults: AnswerItem[] = []
     let correctCount = 0
+    let personalityResult = null
+    let personalityReport = ''
     
-    for (const question of questions) {
-      const selectedAnswer = answers[question.id!]
-      const isCorrect = selectedAnswer === question.correct_answer
+    if (isPersonalityTest) {
+      // 面试测试：进行性格倾向评测
+      console.log('开始面试测试评测...')
+      personalityResult = calculatePersonalityTest(answers, employeeName)
+      personalityReport = generatePersonalityReport(personalityResult)
       
-      if (isCorrect) {
-        correctCount++
+      // 为面试测试创建答案结果（不需要正确答案判断）
+      for (const question of questions) {
+        const selectedAnswer = answers[question.id!]
+        
+        answerResults.push({
+          questionId: question.id!,
+          questionNumber: question.question_number,
+          questionText: question.question_text,
+          optionA: question.option_a,
+          optionB: question.option_b,
+          optionC: question.option_c,
+          optionD: question.option_d,
+          selectedAnswer: selectedAnswer || '',
+          correctAnswer: '', // 面试测试无标准答案
+          isCorrect: true, // 面试测试所有答案都视为"正确"
+          explanation: question.explanation || ''
+        })
       }
       
-      answerResults.push({
-        questionId: question.id!,
-        questionNumber: question.question_number,
-        questionText: question.question_text,
-        optionA: question.option_a,
-        optionB: question.option_b,
-        optionC: question.option_c,
-        optionD: question.option_d,
-        selectedAnswer: selectedAnswer || '',
-        correctAnswer: question.correct_answer,
-        isCorrect,
-        explanation: question.explanation || ''
+      console.log('面试测试评测完成:', {
+        主要倾向数量: personalityResult.mainTendencies.length,
+        推荐职业数量: personalityResult.recommendedOccupations.length
       })
+    } else {
+      // 传统考试：按正确答案评分
+      for (const question of questions) {
+        const selectedAnswer = answers[question.id!]
+        const isCorrect = selectedAnswer === question.correct_answer
+        
+        if (isCorrect) {
+          correctCount++
+        }
+        
+        answerResults.push({
+          questionId: question.id!,
+          questionNumber: question.question_number,
+          questionText: question.question_text,
+          optionA: question.option_a,
+          optionB: question.option_b,
+          optionC: question.option_c,
+          optionD: question.option_d,
+          selectedAnswer: selectedAnswer || '',
+          correctAnswer: question.correct_answer,
+          isCorrect,
+          explanation: question.explanation || ''
+        })
+      }
     }
     console.log(`评分处理耗时: ${Date.now() - scoringStartTime}ms`)
     
-    // 计算分数 (满分100分)
-    const score = Math.round((correctCount / questions.length) * 100)
+    // 计算分数 (面试测试按完成度计分，传统考试按正确率计分)
+    const score = isPersonalityTest ? 100 : Math.round((correctCount / questions.length) * 100)
     
     // 计算答题时长
     const startTime = new Date(startedAt)
@@ -113,14 +173,21 @@ export async function POST(request: NextRequest) {
     const recordData = {
       employee_name: employeeName.trim(),
       set_id: setId,
-      category_id: categoryId || null, // 新增类别ID字段
+      category_id: categoryId || null,
       answers: JSON.stringify(answerResults),
       score,
       total_questions: questions.length,
       started_at: mysqlStartedAt,
-      completed_at: endTime.toISOString(), // 传递完成时间
+      completed_at: endTime.toISOString(),
       ip_address: ip,
-      session_duration: sessionDuration
+      session_duration: sessionDuration,
+      // 面试测试专用字段
+      is_personality_test: isPersonalityTest,
+      personality_test_result: personalityResult ? JSON.stringify(personalityResult) : null,
+      personality_scores: personalityResult ? JSON.stringify(personalityResult.scores) : null,
+      main_tendencies: personalityResult ? personalityResult.mainTendencies.map(t => t.tendencyName).join(',') : null,
+      recommended_occupations: personalityResult ? personalityResult.recommendedOccupations.join(',') : null,
+      test_report: personalityResult ? personalityReport : null
     }
     
     const recordId = await trainingRecordDB.insertRecord(recordData)
@@ -130,24 +197,44 @@ export async function POST(request: NextRequest) {
     console.log(`[${new Date().toISOString()}] 答题记录已保存: ID=${recordId}, 员工=${employeeName}, 分数=${score}/${questions.length}, 总耗时=${totalTime}ms`)
     
     // 返回答题结果
-    return NextResponse.json({
-      success: true,
-      data: {
-        recordId,
-        sessionId,
-        employeeName,
-        score,
-        totalQuestions: questions.length,
-        correctAnswers: correctCount,
-        wrongAnswers: questions.length - correctCount,
-        accuracy: Math.round((correctCount / questions.length) * 100),
-        sessionDuration,
-        passed: score >= passScore, // 使用动态合格分数线
-        answerDetails: answerResults,
-        completedAt: endTime.toISOString()
-      },
-      message: score >= passScore ? '恭喜你通过了培训考试！' : `很遗憾，你的成绩未达到及格线（${passScore}分），建议继续学习后重新参加考试。`
-    })
+    const responseData = {
+      recordId,
+      sessionId,
+      employeeName,
+      allowViewScore, // 添加成绩查看配置
+      completedAt: endTime.toISOString()
+    }
+    
+    // 根据配置决定返回的信息
+    if (allowViewScore) {
+      // 允许查看成绩，返回详细信息
+      return NextResponse.json({
+        success: true,
+        data: {
+          ...responseData,
+          score,
+          totalQuestions: questions.length,
+          correctAnswers: correctCount,
+          wrongAnswers: questions.length - correctCount,
+          accuracy: Math.round((correctCount / questions.length) * 100),
+          sessionDuration,
+          passed: score >= passScore,
+          answerDetails: answerResults
+        },
+        message: score >= passScore ? '恭喜你通过了培训考试！' : `很遗憾，你的成绩未达到及格线（${passScore}分），建议继续学习后重新参加考试。`
+      })
+    } else {
+      // 不允许查看成绩，只返回基本完成信息
+      return NextResponse.json({
+        success: true,
+        data: {
+          ...responseData,
+          totalQuestions: questions.length,
+          sessionDuration
+        },
+        message: '感谢您完成本次测验，您的答题记录已保存。'
+      })
+    }
     
   } catch (error) {
     console.error('提交答题结果失败:', error)
