@@ -16,7 +16,8 @@ import {
   TrendingUp,
   Users,
   LogOut,
-  Sparkles
+  Sparkles,
+  Bot
 } from 'lucide-react'
 
 interface DashboardStats {
@@ -154,6 +155,19 @@ export default function ToolboxHomepage() {
       requiresAuth: true,
       category: "数据分析",
       usageCount: 67,
+      trend: 'up' as const,
+      isNew: true
+    },
+    {
+      name: "智能助手",
+      description: "AI 智能对话助手，提供专业咨询和问题解答服务",
+      href: "/dify-chat",
+      icon: Bot,
+      stats: "AI 驱动 - 免费试用",
+      color: "bg-violet-500",
+      requiresAuth: false,
+      category: "AI 服务",
+      usageCount: 0,
       trend: 'up' as const,
       isNew: true
     }

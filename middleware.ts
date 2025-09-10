@@ -17,7 +17,8 @@ export async function middleware(request: NextRequest) {
     '/',
     '/training',
     '/training/exam',
-    '/training/result'
+    '/training/result',
+    '/dify-chat'
   ]
 
   // 检查是否为公开页面
@@ -44,7 +45,8 @@ export async function middleware(request: NextRequest) {
       '/api/test', // 测试API
       '/api/auth/send-verification', // 管理员验证码发送
       '/api/auth/verify-code', // 管理员验证码校验
-      '/api/connection-status' // 连接池状态监控
+      '/api/connection-status', // 连接池状态监控
+      '/api/dify-chat' // Dify 智能体 API
     ]
 
     // 检查是否为公开API路由
