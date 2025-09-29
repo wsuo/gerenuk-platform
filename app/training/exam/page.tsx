@@ -9,10 +9,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { CheckCircle, Clock, User, BookOpen, AlertCircle, ArrowLeft, ArrowRight, GraduationCap, MousePointer2, X, Info } from 'lucide-react'
+import { CheckCircle, Clock, User, BookOpen, AlertCircle, ArrowLeft, ArrowRight, GraduationCap, MousePointer2, X, Info, Brain, Users } from 'lucide-react'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Label } from '@/components/ui/label'
 import { PERSONALITY_TEST_SET_ID, PERSONALITY_TEST_CATEGORY_ID } from '@/lib/personality-test-config'
+import { JIAHE_INTERVIEW_CATEGORY_NAME, JIAHE_INTERVIEW_SET_NAME } from '@/lib/jiahe-interview-constants'
 
 interface ExamData {
   sessionId: string
@@ -55,6 +56,11 @@ export default function TrainingExamPage() {
   const [showDoubleClickTip, setShowDoubleClickTip] = useState(true)
   const [isSubmissionCompleted, setIsSubmissionCompleted] = useState(false) // 新增提交完成标记
   
+  // 嘉禾面试测试专用状态
+  const [currentStage, setCurrentStage] = useState<'logic' | 'personality'>('logic')
+  const [logicCompleted, setLogicCompleted] = useState(false)
+  const [personalityCompleted, setPersonalityCompleted] = useState(false)
+  
   // 隐藏的作弊功能状态
   const [secretClickCount, setSecretClickCount] = useState(0)
   const [correctAnswers, setCorrectAnswers] = useState<{[key: number]: string}>({})
@@ -64,6 +70,20 @@ export default function TrainingExamPage() {
   // 检查是否为面试测试（职业性格测验）
   const isPersonalityTest = examData?.questionSet?.id === PERSONALITY_TEST_SET_ID || 
                            examData?.category?.id === PERSONALITY_TEST_CATEGORY_ID
+
+  // 检查是否为嘉禾面试测试
+  const isJiaheInterview = examData?.questionSet?.name === JIAHE_INTERVIEW_SET_NAME || 
+                           examData?.category?.name === JIAHE_INTERVIEW_CATEGORY_NAME
+
+  // 嘉禾面试题目分组
+  const logicQuestions = isJiaheInterview ? 
+    (examData?.questions.filter(q => q.section === 'logic') || []) : []
+  const personalityQuestions = isJiaheInterview ? 
+    (examData?.questions.filter(q => q.section === 'personality') || []) : []
+
+  // 答题统计
+  const logicAnswered = logicQuestions.filter(q => answers[q.id]).length
+  const personalityAnswered = personalityQuestions.filter(q => answers[q.id]).length
 
   // beforeunload处理函数
   const handleBeforeUnload = useCallback((e: BeforeUnloadEvent) => {
@@ -103,6 +123,18 @@ export default function TrainingExamPage() {
       try {
         const data = JSON.parse(savedExamData)
         setExamData(data)
+        
+        // 检查是否为嘉禾面试测试，如果是，设置默认显示第一道逻辑推理测试题目
+        const isJiaheTest = data?.questionSet?.name === JIAHE_INTERVIEW_SET_NAME || 
+                           data?.category?.name === JIAHE_INTERVIEW_CATEGORY_NAME
+        
+        if (isJiaheTest && data?.questions) {
+          // 找到第一道逻辑推理测试题目的索引
+          const firstLogicIndex = data.questions.findIndex((q: any) => q.section === 'logic')
+          if (firstLogicIndex !== -1) {
+            setCurrentQuestionIndex(firstLogicIndex)
+          }
+        }
         
         // 加载已保存的答案
         const savedAnswers = localStorage.getItem(`exam-answers-${data.sessionId}`)
@@ -280,9 +312,7 @@ export default function TrainingExamPage() {
     
     // 延迟一点时间让用户看到选择效果，然后跳转到下一题
     setTimeout(() => {
-      if (currentQuestionIndex < (examData?.questions.length || 0) - 1) {
-        goToQuestion(currentQuestionIndex + 1)
-      }
+      goToNextQuestion()
     }, 300) // 300ms延迟，让用户看到选择效果
   }
 
@@ -301,11 +331,180 @@ export default function TrainingExamPage() {
     }
   }, [])
 
+  // 嘉禾面试阶段自动切换
+  useEffect(() => {
+    if (isJiaheInterview) {
+      // 逻辑题全部完成，自动跳转到性格测试
+      if (logicAnswered === logicQuestions.length && logicQuestions.length > 0 && !logicCompleted) {
+        setLogicCompleted(true)
+        setCurrentStage('personality')
+        
+        // 自动跳转到第一道性格测试题目
+        if (personalityQuestions.length > 0 && examData) {
+          const firstPersonalityIndex = examData.questions.findIndex(q => q.section === 'personality')
+          if (firstPersonalityIndex !== -1) {
+            goToQuestion(firstPersonalityIndex)
+          }
+        }
+      }
+      
+      // 性格题全部完成
+      if (personalityAnswered === personalityQuestions.length && personalityQuestions.length > 0) {
+        setPersonalityCompleted(true)
+      }
+      
+      // 根据当前题目确定阶段
+      if (examData && examData.questions[currentQuestionIndex]) {
+        const currentQuestion = examData.questions[currentQuestionIndex]
+        if (currentQuestion.section === 'logic') {
+          setCurrentStage('logic')
+        } else if (currentQuestion.section === 'personality') {
+          setCurrentStage('personality')
+        }
+      }
+    }
+  }, [logicAnswered, personalityAnswered, isJiaheInterview, logicQuestions.length, personalityQuestions.length, currentQuestionIndex, logicCompleted, examData])
+
+  // 嘉禾面试阶段切换函数
+  const switchToLogicTest = () => {
+    if (logicQuestions.length > 0 && examData) {
+      setCurrentStage('logic')
+      // 找到第一道逻辑推理测试题目的全局索引
+      const firstLogicIndex = examData.questions.findIndex(q => q.section === 'logic')
+      if (firstLogicIndex !== -1) {
+        goToQuestion(firstLogicIndex)
+      }
+    }
+  }
+
+  const switchToPersonalityTest = () => {
+    if (personalityQuestions.length > 0 && logicCompleted && examData) {
+      setCurrentStage('personality')
+      // 找到第一道性格测试题目的全局索引
+      const firstPersonalityIndex = examData.questions.findIndex(q => q.section === 'personality')
+      if (firstPersonalityIndex !== -1) {
+        goToQuestion(firstPersonalityIndex)
+      }
+    }
+  }
+
+  const startPersonalityTest = () => {
+    setCurrentStage('personality')
+    if (personalityQuestions.length > 0 && examData) {
+      // 找到第一道性格测试题目的全局索引
+      const firstPersonalityIndex = examData.questions.findIndex(q => q.section === 'personality')
+      if (firstPersonalityIndex !== -1) {
+        goToQuestion(firstPersonalityIndex)
+      }
+    }
+  }
+
   // 导航到指定题目
   const goToQuestion = (index: number) => {
     if (index >= 0 && index < (examData?.questions.length || 0)) {
       setCurrentQuestionIndex(index)
     }
+  }
+
+  // 嘉禾面试测试的下一题导航
+  const goToNextQuestion = () => {
+    if (!examData || !isJiaheInterview) {
+      // 普通考试，使用原始顺序
+      goToQuestion(currentQuestionIndex + 1)
+      return
+    }
+
+    // 嘉禾面试测试：先做所有逻辑题，再做所有性格题
+    const currentQuestion = examData.questions[currentQuestionIndex]
+    
+    if (currentQuestion.section === 'logic') {
+      // 当前是逻辑题，找下一道逻辑题
+      const currentLogicIndex = logicQuestions.findIndex(q => q.id === currentQuestion.id)
+      if (currentLogicIndex < logicQuestions.length - 1) {
+        // 还有下一道逻辑题
+        const nextLogicQuestion = logicQuestions[currentLogicIndex + 1]
+        const nextGlobalIndex = examData.questions.findIndex(q => q.id === nextLogicQuestion.id)
+        goToQuestion(nextGlobalIndex)
+      } else {
+        // 逻辑题做完了，跳转到第一道性格题
+        const firstPersonalityIndex = examData.questions.findIndex(q => q.section === 'personality')
+        if (firstPersonalityIndex !== -1) {
+          goToQuestion(firstPersonalityIndex)
+        }
+      }
+    } else if (currentQuestion.section === 'personality') {
+      // 当前是性格题，找下一道性格题
+      const currentPersonalityIndex = personalityQuestions.findIndex(q => q.id === currentQuestion.id)
+      if (currentPersonalityIndex < personalityQuestions.length - 1) {
+        // 还有下一道性格题
+        const nextPersonalityQuestion = personalityQuestions[currentPersonalityIndex + 1]
+        const nextGlobalIndex = examData.questions.findIndex(q => q.id === nextPersonalityQuestion.id)
+        goToQuestion(nextGlobalIndex)
+      }
+      // 如果是最后一道性格题，不做任何跳转
+    }
+  }
+
+  // 嘉禾面试测试的上一题导航
+  const goToPreviousQuestion = () => {
+    if (!examData || !isJiaheInterview) {
+      // 普通考试，使用原始顺序
+      goToQuestion(currentQuestionIndex - 1)
+      return
+    }
+
+    // 嘉禾面试测试：按逻辑题→性格题的顺序倒退
+    const currentQuestion = examData.questions[currentQuestionIndex]
+    
+    if (currentQuestion.section === 'logic') {
+      // 当前是逻辑题，找上一道逻辑题
+      const currentLogicIndex = logicQuestions.findIndex(q => q.id === currentQuestion.id)
+      if (currentLogicIndex > 0) {
+        // 还有上一道逻辑题
+        const prevLogicQuestion = logicQuestions[currentLogicIndex - 1]
+        const prevGlobalIndex = examData.questions.findIndex(q => q.id === prevLogicQuestion.id)
+        goToQuestion(prevGlobalIndex)
+      }
+      // 如果是第一道逻辑题，不做任何跳转
+    } else if (currentQuestion.section === 'personality') {
+      // 当前是性格题，找上一道性格题
+      const currentPersonalityIndex = personalityQuestions.findIndex(q => q.id === currentQuestion.id)
+      if (currentPersonalityIndex > 0) {
+        // 还有上一道性格题
+        const prevPersonalityQuestion = personalityQuestions[currentPersonalityIndex - 1]
+        const prevGlobalIndex = examData.questions.findIndex(q => q.id === prevPersonalityQuestion.id)
+        goToQuestion(prevGlobalIndex)
+      } else {
+        // 是第一道性格题，跳转到最后一道逻辑题
+        const lastLogicQuestion = logicQuestions[logicQuestions.length - 1]
+        const lastLogicGlobalIndex = examData.questions.findIndex(q => q.id === lastLogicQuestion.id)
+        goToQuestion(lastLogicGlobalIndex)
+      }
+    }
+  }
+
+  // 判断是否是第一题（按照逻辑顺序）
+  const isFirstQuestion = () => {
+    if (!examData || !isJiaheInterview) {
+      return currentQuestionIndex === 0
+    }
+    const currentQuestion = examData.questions[currentQuestionIndex]
+    if (currentQuestion.section === 'logic') {
+      return logicQuestions.findIndex(q => q.id === currentQuestion.id) === 0
+    }
+    return false // 性格题永远不是第一题
+  }
+
+  // 判断是否是最后一题（按照逻辑顺序）
+  const isLastQuestion = () => {
+    if (!examData || !isJiaheInterview) {
+      return currentQuestionIndex === examData.questions.length - 1
+    }
+    const currentQuestion = examData.questions[currentQuestionIndex]
+    if (currentQuestion.section === 'personality') {
+      return personalityQuestions.findIndex(q => q.id === currentQuestion.id) === personalityQuestions.length - 1
+    }
+    return false // 逻辑题永远不是最后一题
   }
 
   // 提交答案
@@ -524,46 +723,161 @@ export default function TrainingExamPage() {
                     </CardDescription>
                   </CardHeader>
                     <CardContent>
-                      <div className="grid grid-cols-6 gap-1.5">
-                        {examData.questions.map((_, index) => {
-                          const questionId = examData.questions[index].id
-                          const isAnswered = answers.hasOwnProperty(questionId)
-                          const isCurrent = index === currentQuestionIndex
+                      {isJiaheInterview ? (
+                        // 嘉禾面试测试的分组导航
+                        <div className="space-y-4">
+                          {/* 逻辑推理测试部分 */}
+                          <div className="space-y-2">
+                            <div className="flex items-center gap-2 mb-2">
+                              <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                              <span className="text-xs font-semibold text-blue-700">逻辑推理测试</span>
+                              <span className="text-xs text-gray-500">({logicQuestions.length}题)</span>
+                            </div>
+                            <div className="grid grid-cols-4 gap-1.5">
+                              {logicQuestions.map((question, idx) => {
+                                const globalIndex = examData.questions.findIndex(q => q.id === question.id)
+                                const isAnswered = answers.hasOwnProperty(question.id)
+                                const isCurrent = globalIndex === currentQuestionIndex
+                                
+                                return (
+                                  <button
+                                    key={`logic-${idx}`}
+                                    onClick={() => goToQuestion(globalIndex)}
+                                    className={`
+                                      w-full h-9 text-xs rounded-lg flex items-center justify-center font-medium transition-all duration-200 transform hover:scale-105
+                                      ${isCurrent 
+                                        ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-lg' 
+                                        : isAnswered 
+                                          ? 'bg-blue-100 text-blue-700 hover:bg-blue-200 border border-blue-300' 
+                                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200 border border-gray-300'
+                                      }
+                                    `}
+                                  >
+                                    {idx + 1}
+                                  </button>
+                                )
+                              })}
+                            </div>
+                          </div>
                           
-                          return (
-                            <button
-                              key={index}
-                              onClick={() => goToQuestion(index)}
-                              className={`
-                                w-full h-9 text-xs rounded-lg flex items-center justify-center font-medium transition-all duration-200 transform hover:scale-105
-                                ${isCurrent 
-                                  ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-lg' 
-                                  : isAnswered 
-                                    ? 'bg-green-100 text-green-700 hover:bg-green-200 border border-green-300' 
-                                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200 border border-gray-300'
-                                }
-                              `}
-                            >
-                              {index + 1}
-                            </button>
-                          )
-                        })}
-                      </div>
+                          {/* 性格特征测试部分 */}
+                          <div className="space-y-2">
+                            <div className="flex items-center gap-2 mb-2">
+                              <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
+                              <span className="text-xs font-semibold text-purple-700">性格特征测试</span>
+                              <span className="text-xs text-gray-500">({personalityQuestions.length}题)</span>
+                            </div>
+                            <div className="grid grid-cols-6 gap-1.5">
+                              {personalityQuestions.map((question, idx) => {
+                                const globalIndex = examData.questions.findIndex(q => q.id === question.id)
+                                const isAnswered = answers.hasOwnProperty(question.id)
+                                const isCurrent = globalIndex === currentQuestionIndex
+                                const isDisabled = !logicCompleted && currentStage === 'logic'
+                                
+                                return (
+                                  <button
+                                    key={`personality-${idx}`}
+                                    onClick={() => !isDisabled && goToQuestion(globalIndex)}
+                                    disabled={isDisabled}
+                                    className={`
+                                      w-full h-9 text-xs rounded-lg flex items-center justify-center font-medium transition-all duration-200 
+                                      ${isDisabled 
+                                        ? 'opacity-50 cursor-not-allowed bg-gray-100 text-gray-400' 
+                                        : 'transform hover:scale-105'
+                                      }
+                                      ${!isDisabled && isCurrent 
+                                        ? 'bg-gradient-to-r from-purple-500 to-purple-600 text-white shadow-lg' 
+                                        : !isDisabled && isAnswered 
+                                          ? 'bg-purple-100 text-purple-700 hover:bg-purple-200 border border-purple-300' 
+                                          : !isDisabled 
+                                            ? 'bg-gray-100 text-gray-600 hover:bg-gray-200 border border-gray-300'
+                                            : ''
+                                      }
+                                    `}
+                                  >
+                                    {idx + 1}
+                                  </button>
+                                )
+                              })}
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        // 普通考试的导航
+                        <div className="grid grid-cols-6 gap-1.5">
+                          {examData.questions.map((_, index) => {
+                            const questionId = examData.questions[index].id
+                            const isAnswered = answers.hasOwnProperty(questionId)
+                            const isCurrent = index === currentQuestionIndex
+                            
+                            return (
+                              <button
+                                key={index}
+                                onClick={() => goToQuestion(index)}
+                                className={`
+                                  w-full h-9 text-xs rounded-lg flex items-center justify-center font-medium transition-all duration-200 transform hover:scale-105
+                                  ${isCurrent 
+                                    ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-lg' 
+                                    : isAnswered 
+                                      ? 'bg-green-100 text-green-700 hover:bg-green-200 border border-green-300' 
+                                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200 border border-gray-300'
+                                  }
+                                `}
+                              >
+                                {index + 1}
+                              </button>
+                            )
+                          })}
+                        </div>
+                      )}
                       
-                      <div className="mt-4 p-3 bg-gradient-to-r from-emerald-50 to-teal-50 rounded-lg">
+                      <div className={`mt-4 p-3 rounded-lg ${
+                        isJiaheInterview 
+                          ? 'bg-gradient-to-r from-blue-50 to-purple-50' 
+                          : 'bg-gradient-to-r from-emerald-50 to-teal-50'
+                      }`}>
                         <div className="space-y-2 text-xs">
-                          <div className="flex items-center gap-2">
-                            <div className="w-3 h-3 bg-gradient-to-r from-emerald-500 to-teal-500 rounded-full" />
-                            <span className="text-emerald-700 font-medium">当前题目</span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <div className="w-3 h-3 bg-green-100 rounded-full border border-green-300" />
-                            <span className="text-green-700">已作答</span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <div className="w-3 h-3 bg-gray-100 rounded-full border border-gray-300" />
-                            <span className="text-gray-600">未作答</span>
-                          </div>
+                          {isJiaheInterview ? (
+                            // 嘉禾面试测试的状态指示器
+                            <>
+                              <div className="flex items-center gap-2">
+                                <div className="w-3 h-3 bg-gradient-to-r from-blue-500 to-blue-600 rounded-full" />
+                                <span className="text-blue-700 font-medium">逻辑测试当前</span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <div className="w-3 h-3 bg-gradient-to-r from-purple-500 to-purple-600 rounded-full" />
+                                <span className="text-purple-700 font-medium">性格测试当前</span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <div className="w-3 h-3 bg-blue-100 rounded-full border border-blue-300" />
+                                <span className="text-blue-700">逻辑已答</span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <div className="w-3 h-3 bg-purple-100 rounded-full border border-purple-300" />
+                                <span className="text-purple-700">性格已答</span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <div className="w-3 h-3 bg-gray-100 rounded-full border border-gray-300" />
+                                <span className="text-gray-600">未作答</span>
+                              </div>
+                            </>
+                          ) : (
+                            // 普通考试的状态指示器
+                            <>
+                              <div className="flex items-center gap-2">
+                                <div className="w-3 h-3 bg-gradient-to-r from-emerald-500 to-teal-500 rounded-full" />
+                                <span className="text-emerald-700 font-medium">当前题目</span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <div className="w-3 h-3 bg-green-100 rounded-full border border-green-300" />
+                                <span className="text-green-700">已作答</span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <div className="w-3 h-3 bg-gray-100 rounded-full border border-gray-300" />
+                                <span className="text-gray-600">未作答</span>
+                              </div>
+                            </>
+                          )}
                         </div>
                       </div>
                     </CardContent>
@@ -575,6 +889,80 @@ export default function TrainingExamPage() {
                 timeWarningLevel === 'urgent' ? 'animate-pulse' : ''
               }`}>
                 <div className="space-y-4">
+                  {/* 嘉禾面试测试阶段指示器 */}
+                  {isJiaheInterview && (
+                    <Card className="bg-gradient-to-r from-blue-50 to-purple-50 border-2 border-blue-200 shadow-lg">
+                      <CardContent className="p-4">
+                        <div className="flex flex-col lg:flex-row items-center justify-between gap-4">
+                          <div className="flex flex-col sm:flex-row items-center gap-6">
+                            {/* 逻辑测试阶段 */}
+                            <div className={`flex items-center gap-3 transition-all duration-300 ${currentStage === 'logic' ? 'opacity-100 scale-105' : 'opacity-70'}`}>
+                              <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm transition-all duration-300 ${
+                                currentStage === 'logic' ? 'bg-blue-500 text-white shadow-lg' : 
+                                logicCompleted ? 'bg-green-500 text-white' : 'bg-gray-300 text-gray-600'
+                              }`}>
+                                {logicCompleted ? '✓' : '1'}
+                              </div>
+                              <div className="text-center sm:text-left">
+                                <p className="font-semibold text-blue-700">逻辑推理测试</p>
+                                <p className="text-xs text-gray-600">共{logicQuestions.length}道题 • {logicAnswered}/{logicQuestions.length} 已完成</p>
+                              </div>
+                            </div>
+                            
+                            {/* 连接线 */}
+                            <div className="w-16 h-0.5 bg-gradient-to-r from-blue-300 to-purple-300 hidden sm:block" />
+                            <div className="w-0.5 h-8 bg-gradient-to-b from-blue-300 to-purple-300 sm:hidden" />
+                            
+                            {/* 性格测试阶段 */}
+                            <div className={`flex items-center gap-3 transition-all duration-300 ${
+                              currentStage === 'personality' ? 'opacity-100 scale-105' : 
+                              logicCompleted ? 'opacity-100' : 'opacity-50'
+                            }`}>
+                              <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm transition-all duration-300 ${
+                                currentStage === 'personality' ? 'bg-purple-500 text-white shadow-lg' : 
+                                personalityCompleted ? 'bg-green-500 text-white' : 
+                                logicCompleted ? 'bg-gray-400 text-gray-600' : 'bg-gray-300 text-gray-500'
+                              }`}>
+                                {personalityCompleted ? '✓' : '2'}
+                              </div>
+                              <div className="text-center sm:text-left">
+                                <p className={`font-semibold transition-colors duration-300 ${
+                                  logicCompleted ? 'text-purple-700' : 'text-gray-500'
+                                }`}>性格特征测试</p>
+                                <p className="text-xs text-gray-600">共{personalityQuestions.length}道题 • {personalityAnswered}/{personalityQuestions.length} 已完成</p>
+                              </div>
+                            </div>
+                          </div>
+                          
+                          {/* 阶段切换按钮 */}
+                          <div className="flex gap-2">
+                            <Button 
+                              size="sm" 
+                              variant={currentStage === 'logic' ? 'default' : 'outline'}
+                              onClick={switchToLogicTest}
+                              className="text-xs bg-blue-500 hover:bg-blue-600 border-blue-300"
+                            >
+                              逻辑测试
+                            </Button>
+                            <Button 
+                              size="sm" 
+                              variant={currentStage === 'personality' ? 'default' : 'outline'}
+                              onClick={switchToPersonalityTest}
+                              disabled={!logicCompleted}
+                              className={`text-xs transition-all duration-300 ${
+                                logicCompleted 
+                                  ? 'bg-purple-500 hover:bg-purple-600 border-purple-300' 
+                                  : 'opacity-50 cursor-not-allowed bg-gray-300'
+                              }`}
+                            >
+                              性格测试
+                            </Button>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
+
                   {/* 进度状态卡片 */}
                   <Card className={`backdrop-blur-xl shadow-lg transition-all duration-300 ${
                     timeWarningLevel === 'urgent' ? 'bg-red-50/95 border-red-300' :
@@ -711,7 +1099,7 @@ export default function TrainingExamPage() {
                   )}
 
                   {/* 面试测试特殊提示 */}
-                  {isPersonalityTest && (
+                  {isPersonalityTest && !isJiaheInterview && (
                     <Alert className="border-purple-200 bg-purple-50/90 backdrop-blur-sm shadow-lg">
                       <div className="flex items-start gap-3">
                         <Info className="w-5 h-5 text-purple-600 mt-0.5 flex-shrink-0" />
@@ -727,18 +1115,80 @@ export default function TrainingExamPage() {
                     </Alert>
                   )}
 
+                  {/* 嘉禾面试测试阶段特定提示 */}
+                  {isJiaheInterview && (
+                    <Alert className={`backdrop-blur-sm shadow-lg ${
+                      currentStage === 'logic' 
+                        ? 'border-blue-200 bg-blue-50/90' 
+                        : 'border-purple-200 bg-purple-50/90'
+                    }`}>
+                      <div className="flex items-start gap-3">
+                        <Info className={`w-5 h-5 mt-0.5 flex-shrink-0 ${
+                          currentStage === 'logic' ? 'text-blue-600' : 'text-purple-600'
+                        }`} />
+                        <div className="flex-1">
+                          <AlertDescription className={
+                            currentStage === 'logic' ? 'text-blue-800' : 'text-purple-800'
+                          }>
+                            {currentStage === 'logic' ? (
+                              <>
+                                <strong className="font-medium text-blue-900">🧠 逻辑推理测试进行中</strong>
+                                <br />
+                                此部分共 {logicQuestions.length} 道题目，考查您的逻辑思维和推理能力。
+                                完成后将自动进入性格特征测试环节。
+                                <strong className="text-blue-900"> 请认真思考，选择最合理的答案。</strong>
+                              </>
+                            ) : (
+                              <>
+                                <strong className="font-medium text-purple-900">👤 性格特征测试进行中</strong>
+                                <br />
+                                此部分共 {personalityQuestions.length} 道题目，基于 D-I-S-C 性格模型分析您的工作风格。
+                                <strong className="text-purple-900">没有标准答案，请根据真实想法作答。</strong>
+                              </>
+                            )}
+                          </AlertDescription>
+                        </div>
+                      </div>
+                    </Alert>
+                  )}
+
                   {/* 当前题目 */}
-                  <Card className="bg-white/95 backdrop-blur-xl border-emerald-200/50 shadow-lg">
+                  <Card className={`bg-white/95 backdrop-blur-xl shadow-lg ${
+                    isJiaheInterview 
+                      ? currentStage === 'logic' 
+                        ? 'border-blue-200/50' 
+                        : 'border-purple-200/50'
+                      : 'border-emerald-200/50'
+                  }`}>
                     <CardHeader>
                       <div className="flex items-start justify-between">
                         <div className="flex-1">
                           <div className="flex items-center gap-2 mb-3">
-                            <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200">
-                              第 {currentQuestionIndex + 1} 题
+                            <Badge className={
+                              isJiaheInterview 
+                                ? currentQuestion.section === 'logic'
+                                  ? 'bg-blue-100 text-blue-700 border-blue-200'
+                                  : 'bg-purple-100 text-purple-700 border-purple-200'
+                                : 'bg-emerald-100 text-emerald-700 border-emerald-200'
+                            }>
+                              {isJiaheInterview 
+                                ? `${currentQuestion.section === 'logic' ? '逻辑' : '性格'} 第 ${
+                                    currentQuestion.section === 'logic' 
+                                      ? logicQuestions.findIndex(q => q.id === currentQuestion.id) + 1
+                                      : personalityQuestions.findIndex(q => q.id === currentQuestion.id) + 1
+                                  } 题`
+                                : `第 ${currentQuestionIndex + 1} 题`
+                              }
                             </Badge>
                             {currentQuestion.section && (
-                              <Badge variant="outline" className="border-teal-200 text-teal-700">
-                                {currentQuestion.section}
+                              <Badge variant="outline" className={
+                                isJiaheInterview
+                                  ? currentStage === 'logic' 
+                                    ? 'border-blue-200 text-blue-700'
+                                    : 'border-purple-200 text-purple-700'
+                                  : 'border-teal-200 text-teal-700'
+                              }>
+                                {currentQuestion.section === 'logic' ? '逻辑推理' : currentQuestion.section === 'personality' ? '性格测试' : currentQuestion.section}
                               </Badge>
                             )}
                           </div>
@@ -758,6 +1208,10 @@ export default function TrainingExamPage() {
                           { key: 'D', text: currentQuestion.optionD }
                         ].filter(option => option.text && option.text.trim() !== '').map(option => {
                           const isSelected = answers[currentQuestion.id] === option.key
+                          const themeColor = isJiaheInterview 
+                            ? currentQuestion.section === 'logic' ? 'blue' : 'purple'
+                            : 'emerald'
+                          
                           return (
                             <div 
                               key={option.key}
@@ -765,20 +1219,40 @@ export default function TrainingExamPage() {
                               onDoubleClick={() => handleDoubleClickOption(currentQuestion.id, option.key)}
                               className={`flex items-start space-x-3 p-3 lg:p-4 rounded-lg border-2 transition-all duration-200 cursor-pointer ${
                                 isSelected 
-                                  ? 'border-emerald-300 bg-emerald-50 shadow-sm' 
-                                  : 'border-gray-200 hover:border-emerald-200 hover:bg-emerald-50/30'
+                                  ? themeColor === 'blue' 
+                                    ? 'border-blue-300 bg-blue-50 shadow-sm' 
+                                    : themeColor === 'purple'
+                                      ? 'border-purple-300 bg-purple-50 shadow-sm'
+                                      : 'border-emerald-300 bg-emerald-50 shadow-sm'
+                                  : themeColor === 'blue'
+                                    ? 'border-gray-200 hover:border-blue-200 hover:bg-blue-50/30'
+                                    : themeColor === 'purple'
+                                      ? 'border-gray-200 hover:border-purple-200 hover:bg-purple-50/30'
+                                      : 'border-gray-200 hover:border-emerald-200 hover:bg-emerald-50/30'
                               }`}
                               title="双击可选择答案并自动跳转到下一题"
                             >
                               <div className="flex-1 cursor-pointer leading-relaxed text-sm lg:text-base">
                                 <span className={`font-medium mr-2 lg:mr-3 inline-flex items-center justify-center w-5 h-5 lg:w-6 lg:h-6 rounded-full text-xs ${
                                   isSelected 
-                                    ? 'bg-emerald-500 text-white' 
+                                    ? themeColor === 'blue'
+                                      ? 'bg-blue-500 text-white'
+                                      : themeColor === 'purple'
+                                        ? 'bg-purple-500 text-white'
+                                        : 'bg-emerald-500 text-white'
                                     : 'bg-gray-200 text-gray-600'
                                 }`}>
                                   {option.key}
                                 </span>
-                                <span className={isSelected ? 'text-emerald-700 font-medium' : 'text-gray-700'}>
+                                <span className={
+                                  isSelected 
+                                    ? themeColor === 'blue'
+                                      ? 'text-blue-700 font-medium'
+                                      : themeColor === 'purple'
+                                        ? 'text-purple-700 font-medium'
+                                        : 'text-emerald-700 font-medium'
+                                    : 'text-gray-700'
+                                }>
                                   {option.text}
                                 </span>
                               </div>
@@ -793,9 +1267,15 @@ export default function TrainingExamPage() {
                   <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
                     <Button
                       variant="outline"
-                      onClick={() => goToQuestion(currentQuestionIndex - 1)}
-                      disabled={currentQuestionIndex === 0}
-                      className="w-full sm:w-auto flex items-center gap-2 border-emerald-200 text-emerald-700 hover:bg-emerald-50"
+                      onClick={goToPreviousQuestion}
+                      disabled={isFirstQuestion()}
+                      className={`w-full sm:w-auto flex items-center gap-2 ${
+                        isJiaheInterview 
+                          ? currentQuestion.section === 'logic'
+                            ? 'border-blue-200 text-blue-700 hover:bg-blue-50'
+                            : 'border-purple-200 text-purple-700 hover:bg-purple-50'
+                          : 'border-emerald-200 text-emerald-700 hover:bg-emerald-50'
+                      }`}
                     >
                       <ArrowLeft className="w-4 h-4" />
                       上一题
@@ -807,12 +1287,18 @@ export default function TrainingExamPage() {
                         <Button
                           onClick={() => setShowConfirmSubmit(true)}
                           disabled={isTimeUp}
-                          className="w-full sm:w-auto flex items-center gap-2 px-6 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 shadow-lg"
+                          className={`w-full sm:w-auto flex items-center gap-2 px-6 shadow-lg ${
+                            isJiaheInterview 
+                              ? currentQuestion.section === 'logic'
+                                ? 'bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700'
+                                : 'bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700'
+                              : 'bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600'
+                          }`}
                         >
                           <CheckCircle className="w-4 h-4" />
                           提交试卷
                         </Button>
-                      ) : currentQuestionIndex === examData.questions.length - 1 ? (
+                      ) : isLastQuestion() ? (
                         /* 在最后一题且未全部完成时，显示灰色提交按钮 */
                         <Button
                           onClick={() => setShowConfirmSubmit(true)}
@@ -826,9 +1312,15 @@ export default function TrainingExamPage() {
                       ) : (
                         /* 不在最后一题且未全部完成时，显示下一题按钮 */
                         <Button
-                          onClick={() => goToQuestion(currentQuestionIndex + 1)}
-                          disabled={currentQuestionIndex === examData.questions.length - 1}
-                          className="w-full sm:w-auto flex items-center gap-2 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600"
+                          onClick={goToNextQuestion}
+                          disabled={isLastQuestion()}
+                          className={`w-full sm:w-auto flex items-center gap-2 ${
+                            isJiaheInterview 
+                              ? currentQuestion.section === 'logic'
+                                ? 'bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700'
+                                : 'bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700'
+                              : 'bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600'
+                          }`}
                         >
                           下一题
                           <ArrowRight className="w-4 h-4" />
