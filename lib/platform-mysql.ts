@@ -17,12 +17,12 @@ let platformPool: mysql.Pool | null = null
 function getPlatformMySQLConfig(): PlatformMySQLConfig {
   return {
     host: process.env.PLATFORM_DB_HOST || '100.72.60.117',
-    port: parseInt(process.env.PLATFORM_DB_PORT || '3306'),
-    user: process.env.PLATFORM_DB_USER || 'root',
-    password: process.env.PLATFORM_DB_PASSWORD || '',
+    port: parseInt(process.env.PLATFORM_DB_PORT || '23306'),
+    user: process.env.PLATFORM_DB_USER || 'remote_user',
+    password: process.env.PLATFORM_DB_PASSWORD || '!QAZxsw2',
     database: process.env.PLATFORM_DB_DATABASE || 'gerenuk_platform',
-    connectionLimit: parseInt(process.env.PLATFORM_DB_CONNECTION_LIMIT || '5'), // 降低连接数
-    queueLimit: parseInt(process.env.PLATFORM_DB_QUEUE_LIMIT || '10') // 增加队列限制
+    connectionLimit: parseInt(process.env.PLATFORM_DB_CONNECTION_LIMIT || '20'), // 增加连接数
+    queueLimit: parseInt(process.env.PLATFORM_DB_QUEUE_LIMIT || '50') // 增加队列限制
   }
 }
 
@@ -40,6 +40,10 @@ export function createPlatformPool(): mysql.Pool {
       queueLimit: config.queueLimit,
       charset: 'utf8mb4',
       multipleStatements: false,
+      acquireTimeout: 60000, // 获取连接超时时间
+      timeout: 60000, // 查询超时时间 
+      idleTimeout: 300000, // 空闲连接超时时间（5分钟）
+      maxIdle: 10, // 最大空闲连接数
       typeCast: function (field, next) {
         // 处理 TINYINT(1) 作为布尔值
         if (field.type === 'TINY' && field.length === 1) {
