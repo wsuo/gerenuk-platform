@@ -46,7 +46,10 @@ export async function middleware(request: NextRequest) {
       '/api/auth/send-verification', // 管理员验证码发送
       '/api/auth/verify-code', // 管理员验证码校验
       '/api/connection-status', // 连接池状态监控
-      '/api/dify-chat' // Dify 智能体 API
+      '/api/dify-chat', // Dify 智能体 API
+      '/api/training/integrate-jiahe', // 嘉禾面试集成API
+      '/api/jiahe-interview/replace-questions', // 嘉禾面试题目替换API
+      '/api/training/sync-jiahe-questions' // 嘉禾面试题目同步API
     ]
 
     // 检查是否为公开API路由
