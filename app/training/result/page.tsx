@@ -23,8 +23,11 @@ import {
   TrendingUp,
   Calendar,
   ArrowUp,
-  ArrowDown
+  ArrowDown,
+  Brain,
+  BarChart3
 } from 'lucide-react'
+import { isJiaheInterviewCategory, isJiaheInterviewSet } from '@/lib/jiahe-interview-constants'
 
 interface ExamResult {
   recordId: number
@@ -40,6 +43,10 @@ interface ExamResult {
   passed?: boolean // 改为可选
   answerDetails?: AnswerDetail[] // 改为可选
   completedAt: string
+  // 嘉禾面试测试专用字段
+  categoryName?: string
+  setName?: string
+  jiaheInterviewResult?: any // 嘉禾面试完整结果
 }
 
 interface AnswerDetail {
@@ -194,6 +201,11 @@ export default function TrainingResultPage() {
     )
   }
 
+  // 判断是否为嘉禾面试测试
+  const isJiaheInterview = (result.categoryName && isJiaheInterviewCategory(result.categoryName)) ||
+                          (result.setName && isJiaheInterviewSet(result.setName)) ||
+                          !!result.jiaheInterviewResult
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
       <div className="container mx-auto px-4 py-8 max-w-7xl">
@@ -252,6 +264,263 @@ export default function TrainingResultPage() {
               <Button onClick={handleRetakeExam} variant="outline" className="flex items-center gap-2">
                 <RotateCcw className="w-4 h-4" />
                 重新考试
+              </Button>
+            </div>
+          </div>
+        ) : isJiaheInterview ? (
+          // 嘉禾面试测试专门显示逻辑
+          <div className="max-w-5xl mx-auto">
+            {/* 嘉禾面试结果头部 */}
+            <div className="text-center mb-8">
+              <div className="inline-flex items-center justify-center w-20 h-20 rounded-full mb-4 bg-emerald-100">
+                <Brain className="w-10 h-10 text-emerald-600" />
+              </div>
+              
+              <h1 className="text-3xl font-bold text-gray-900 mb-2">
+                江苏嘉禾植保面试测试完成
+              </h1>
+              
+              <p className="text-lg text-gray-600 mb-4">
+                您已完成逻辑推理测试和性格特征测试
+              </p>
+            </div>
+
+            {/* 嘉禾面试测试结果详情 */}
+            {result.jiaheInterviewResult && (
+              <>
+                {/* 基本信息和总结 */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                  {/* 基本信息卡片 */}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <User className="w-5 h-5" />
+                        测试信息
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="flex items-center justify-between">
+                        <span className="text-muted-foreground">姓名</span>
+                        <span className="font-medium">{result.employeeName}</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-muted-foreground">完成时间</span>
+                        <span className="font-medium">
+                          {new Date(result.completedAt).toLocaleString()}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-muted-foreground">答题时长</span>
+                        <span className="font-medium flex items-center gap-1">
+                          <Clock className="w-4 h-4" />
+                          {formatDuration(result.sessionDuration)}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-muted-foreground">总题数</span>
+                        <span className="font-medium">{result.totalQuestions} 题</span>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* 逻辑测试成绩卡片 */}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <Target className="w-5 h-5" />
+                        逻辑推理测试
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="flex items-center justify-between">
+                        <span className="text-muted-foreground">题目数量</span>
+                        <span className="font-medium">{result.jiaheInterviewResult.logicResult.totalQuestions} 题</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-muted-foreground">正确数量</span>
+                        <span className="font-medium text-green-600 flex items-center gap-1">
+                          <CheckCircle className="w-4 h-4" />
+                          {result.jiaheInterviewResult.logicResult.correctAnswers} 题
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-muted-foreground">错误数量</span>
+                        <span className="font-medium text-red-600 flex items-center gap-1">
+                          <XCircle className="w-4 h-4" />
+                          {result.jiaheInterviewResult.logicResult.wrongAnswers} 题
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-muted-foreground">正确率</span>
+                        <span className="font-medium text-blue-600">
+                          {result.jiaheInterviewResult.logicResult.accuracy.toFixed(1)}%
+                        </span>
+                      </div>
+                      
+                      <Separator />
+                      
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-muted-foreground">准确度进度</span>
+                          <span className="font-medium">{result.jiaheInterviewResult.logicResult.accuracy.toFixed(1)}%</span>
+                        </div>
+                        <Progress 
+                          value={result.jiaheInterviewResult.logicResult.accuracy} 
+                          className="h-3 [&>div]:bg-blue-500"
+                        />
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                {/* 性格测试结果 */}
+                <Card className="mb-8">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <BarChart3 className="w-5 h-5 text-purple-600" />
+                      D-I-S-C 性格特征分析
+                    </CardTitle>
+                    <CardDescription>
+                      基于您在性格测试中的选择，以下是您的性格特征分析结果
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-6">
+                    {/* 主导性格类型 */}
+                    <div className="space-y-4">
+                      <h4 className="text-lg font-semibold text-gray-900">主导性格类型</h4>
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                        {result.jiaheInterviewResult.personalityResult.dominantTypes.map((type, index) => (
+                          <div key={type.type} className="text-center p-4 border rounded-lg bg-gradient-to-br from-purple-50 to-blue-50 border-purple-200">
+                            <div className="w-12 h-12 mx-auto mb-2 bg-purple-100 rounded-full flex items-center justify-center">
+                              <span className="text-lg font-bold text-purple-600">{index + 1}</span>
+                            </div>
+                            <h5 className="font-semibold text-gray-900 mb-1">{type.name}</h5>
+                            <p className="text-sm text-gray-600">
+                              {type.score} 选择 ({(type.percentage * 100).toFixed(1)}%)
+                            </p>
+                            <div className="mt-2">
+                              <Progress value={type.percentage * 100} className="h-2" />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* 突出特征 */}
+                    <div className="space-y-4">
+                      <h4 className="text-lg font-semibold text-gray-900">突出特征</h4>
+                      <div className="flex flex-wrap gap-2">
+                        {result.jiaheInterviewResult.personalityResult.characteristics.map((characteristic, index) => (
+                          <Badge key={index} variant="secondary" className="text-sm py-1 px-3">
+                            {characteristic}
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* 性格分析总结 */}
+                    <div className="space-y-4">
+                      <h4 className="text-lg font-semibold text-gray-900">性格分析总结</h4>
+                      <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
+                        <p className="text-gray-800 leading-relaxed">
+                          {result.jiaheInterviewResult.personalityResult.summary}
+                        </p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* 综合评价 */}
+                <Card className="mb-8">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Award className="w-5 h-5 text-amber-600" />
+                      综合评价
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="p-4 bg-amber-50 rounded-lg border border-amber-200">
+                      <p className="text-gray-800 leading-relaxed">
+                        {result.jiaheInterviewResult.overallSummary}
+                      </p>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* 逻辑测试详情（只显示逻辑题的对错） */}
+                {result.answerDetails && (
+                  <Card className="mb-8">
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <BookOpen className="w-5 h-5 text-emerald-600" />
+                        逻辑推理测试详情
+                      </CardTitle>
+                      <CardDescription>
+                        以下显示逻辑推理题目的答题情况（性格测试题目无对错之分）
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-4">
+                        {result.answerDetails
+                          .filter((detail, index) => index < result.jiaheInterviewResult.logicResult.totalQuestions) // 只显示逻辑题
+                          .map((detail, index) => (
+                          <div
+                            key={detail.questionId}
+                            className={`p-4 border rounded-lg transition-all ${
+                              detail.isCorrect 
+                                ? 'border-green-200 bg-green-50' 
+                                : 'border-red-200 bg-red-50'
+                            }`}
+                          >
+                            <div className="flex items-start gap-3">
+                              <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${
+                                detail.isCorrect 
+                                  ? 'bg-green-500 text-white' 
+                                  : 'bg-red-500 text-white'
+                              }`}>
+                                {detail.questionNumber}
+                              </div>
+                              <div className="flex-1">
+                                <div className="flex items-center justify-between mb-2">
+                                  <h4 className="font-medium text-gray-900">
+                                    {detail.isCorrect ? '✓ 回答正确' : '✗ 回答错误'}
+                                  </h4>
+                                  <div className="flex gap-2 text-xs">
+                                    <span className="text-gray-600">
+                                      正确: <span className="font-medium text-green-700">{detail.correctAnswer}</span>
+                                    </span>
+                                    <span className="text-gray-600">
+                                      您选: <span className={`font-medium ${
+                                        detail.selectedAnswer === detail.correctAnswer ? 'text-green-700' : 'text-red-700'
+                                      }`}>
+                                        {detail.selectedAnswer || '未作答'}
+                                      </span>
+                                    </span>
+                                  </div>
+                                </div>
+                                <p className="text-sm text-gray-700 mb-3">{detail.questionText}</p>
+                                <div className="text-sm text-gray-600">
+                                  <span className="font-medium">选项:</span> {detail[`option${detail.selectedAnswer}` as keyof AnswerDetail] as string}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+              </>
+            )}
+
+            <div className="flex justify-center gap-4 mt-8">
+              <Button onClick={handleGoHome} className="flex items-center gap-2">
+                <Home className="w-4 h-4" />
+                返回首页
+              </Button>
+              <Button onClick={handleRetakeExam} variant="outline" className="flex items-center gap-2">
+                <RotateCcw className="w-4 h-4" />
+                重新测试
               </Button>
             </div>
           </div>
