@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { questionDB, questionSetDB, examCategoryDB, trainingRecordDB, systemConfigDB } from '@/lib/database'
 import { calculatePersonalityTest, generatePersonalityReport } from '@/lib/personality-test-analyzer'
 import { PERSONALITY_TEST_SET_ID, PERSONALITY_TEST_CATEGORY_ID } from '@/lib/personality-test-config'
+import { isJiaheInterviewCategory, isJiaheInterviewSet } from '@/lib/jiahe-interview-constants'
+import { JiaheInterviewAnalyzer } from '@/lib/jiahe-interview-analyzer'
 
 interface AnswerItem {
   questionId: number
@@ -86,7 +88,14 @@ export async function POST(request: NextRequest) {
     
     // 判断是否为面试测试
     const isPersonalityTest = setId === PERSONALITY_TEST_SET_ID || categoryId === PERSONALITY_TEST_CATEGORY_ID
+    
+    // 判断是否为嘉禾面试测试
+    const category = categoryId ? await examCategoryDB.findById(categoryId) : null
+    const isJiaheInterview = category ? isJiaheInterviewCategory(category.name) : 
+                            questionSet ? isJiaheInterviewSet(questionSet.name) : false
+    
     console.log(`是否为面试测试: ${isPersonalityTest}`)
+    console.log(`是否为嘉禾面试测试: ${isJiaheInterview}`)
     
     // 评分处理
     const scoringStartTime = Date.now()
@@ -94,8 +103,66 @@ export async function POST(request: NextRequest) {
     let correctCount = 0
     let personalityResult = null
     let personalityReport = ''
+    let jiaheInterviewResult = null
     
-    if (isPersonalityTest) {
+    if (isJiaheInterview) {
+      // 嘉禾面试测试：使用专门的分析器
+      console.log('开始嘉禾面试测试评测...')
+      
+      // 转换题目格式给嘉禾分析器
+      const jiaheQuestions = questions.map(q => ({
+        id: q.id,
+        section: q.section === 'logic' ? 'logic' as const : 'personality' as const,
+        question_number: q.question_number,
+        question_text: q.question_text,
+        option_a: q.option_a,
+        option_b: q.option_b,
+        option_c: q.option_c,
+        option_d: q.option_d,
+        correct_answer: q.correct_answer,
+        personality_type: q.explanation?.includes('性格类型:') ? 
+          q.explanation.replace('性格类型: ', '') : undefined
+      }))
+      
+      jiaheInterviewResult = JiaheInterviewAnalyzer.generateCompleteResult(
+        sessionId,
+        employeeName,
+        answers,
+        jiaheQuestions,
+        new Date(startedAt),
+        new Date()
+      )
+      
+      // 为嘉禾面试创建答案结果
+      for (const question of questions) {
+        const selectedAnswer = answers[question.id!]
+        const isLogicQuestion = question.section === 'logic'
+        const isCorrect = isLogicQuestion ? (selectedAnswer === question.correct_answer) : true
+        
+        if (isLogicQuestion && isCorrect) {
+          correctCount++
+        }
+        
+        answerResults.push({
+          questionId: question.id!,
+          questionNumber: question.question_number,
+          questionText: question.question_text,
+          optionA: question.option_a,
+          optionB: question.option_b,
+          optionC: question.option_c,
+          optionD: question.option_d,
+          selectedAnswer: selectedAnswer || '',
+          correctAnswer: isLogicQuestion ? question.correct_answer : '',
+          isCorrect,
+          explanation: question.explanation || ''
+        })
+      }
+      
+      console.log('嘉禾面试测试评测完成:', {
+        逻辑测试正确数: jiaheInterviewResult.logicResult.correctAnswers,
+        性格倾向数量: jiaheInterviewResult.personalityResult.dominantTypes.length
+      })
+    } else if (isPersonalityTest) {
       // 面试测试：进行性格倾向评测
       console.log('开始面试测试评测...')
       personalityResult = calculatePersonalityTest(answers, employeeName)
@@ -151,8 +218,18 @@ export async function POST(request: NextRequest) {
     }
     console.log(`评分处理耗时: ${Date.now() - scoringStartTime}ms`)
     
-    // 计算分数 (面试测试按完成度计分，传统考试按正确率计分)
-    const score = isPersonalityTest ? 100 : Math.round((correctCount / questions.length) * 100)
+    // 计算分数
+    let score
+    if (isJiaheInterview) {
+      // 嘉禾面试：逻辑测试部分按正确率，性格测试按完成度，综合为100分
+      score = 100 // 嘉禾面试统一显示100分完成
+    } else if (isPersonalityTest) {
+      // 面试测试按完成度计分
+      score = 100
+    } else {
+      // 传统考试按正确率计分
+      score = Math.round((correctCount / questions.length) * 100)
+    }
     
     // 计算答题时长
     const startTime = new Date(startedAt)
@@ -182,12 +259,22 @@ export async function POST(request: NextRequest) {
       ip_address: ip,
       session_duration: sessionDuration,
       // 面试测试专用字段
-      is_personality_test: isPersonalityTest,
-      personality_test_result: personalityResult ? JSON.stringify(personalityResult) : null,
-      personality_scores: personalityResult ? JSON.stringify(personalityResult.scores) : null,
-      main_tendencies: personalityResult ? personalityResult.mainTendencies.map(t => t.tendencyName).join(',') : null,
-      recommended_occupations: personalityResult ? personalityResult.recommendedOccupations.join(',') : null,
-      test_report: personalityResult ? personalityReport : null
+      is_personality_test: isPersonalityTest || isJiaheInterview,
+      personality_test_result: isJiaheInterview ? 
+        JSON.stringify(jiaheInterviewResult) : 
+        personalityResult ? JSON.stringify(personalityResult) : null,
+      personality_scores: isJiaheInterview ? 
+        JSON.stringify(jiaheInterviewResult.personalityResult.scores) :
+        personalityResult ? JSON.stringify(personalityResult.scores) : null,
+      main_tendencies: isJiaheInterview ? 
+        jiaheInterviewResult.personalityResult.dominantTypes.map(t => t.name).join(',') :
+        personalityResult ? personalityResult.mainTendencies.map(t => t.tendencyName).join(',') : null,
+      recommended_occupations: isJiaheInterview ? 
+        jiaheInterviewResult.personalityResult.characteristics.join(',') :
+        personalityResult ? personalityResult.recommendedOccupations.join(',') : null,
+      test_report: isJiaheInterview ? 
+        JiaheInterviewAnalyzer.generateDetailedReport(jiaheInterviewResult) :
+        personalityResult ? personalityReport : null
     }
     
     const recordId = await trainingRecordDB.insertRecord(recordData)
@@ -208,19 +295,28 @@ export async function POST(request: NextRequest) {
     // 根据配置决定返回的信息
     if (allowViewScore) {
       // 允许查看成绩，返回详细信息
+      const resultData = {
+        ...responseData,
+        score,
+        totalQuestions: questions.length,
+        correctAnswers: correctCount,
+        wrongAnswers: questions.length - correctCount,
+        accuracy: Math.round((correctCount / questions.length) * 100),
+        sessionDuration,
+        passed: score >= passScore,
+        answerDetails: answerResults
+      }
+
+      // 如果是嘉禾面试测试，添加专门的结果数据
+      if (isJiaheInterview && jiaheInterviewResult) {
+        resultData.jiaheInterviewResult = jiaheInterviewResult
+        resultData.categoryName = category?.name
+        resultData.setName = questionSet?.name
+      }
+
       return NextResponse.json({
         success: true,
-        data: {
-          ...responseData,
-          score,
-          totalQuestions: questions.length,
-          correctAnswers: correctCount,
-          wrongAnswers: questions.length - correctCount,
-          accuracy: Math.round((correctCount / questions.length) * 100),
-          sessionDuration,
-          passed: score >= passScore,
-          answerDetails: answerResults
-        },
+        data: resultData,
         message: score >= passScore ? '恭喜你通过了培训考试！' : `很遗憾，你的成绩未达到及格线（${passScore}分），建议继续学习后重新参加考试。`
       })
     } else {
