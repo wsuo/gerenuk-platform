@@ -39,39 +39,42 @@ export class HTMLQuestionParser {
   static parseHTML(htmlContent: string, setName?: string): ParseResult {
     try {
       const warnings: string[] = []
-      
+
       // 清理HTML内容，移除多余的空白字符
       const cleanHTML = htmlContent.trim()
-      
+
       if (!cleanHTML) {
         return {
           success: false,
           error: 'HTML内容为空'
         }
       }
-      
+
       // 提取标题
       const title = this.extractTitle(cleanHTML) || setName || '未命名题库'
-      
+
       // 提取描述
       const description = this.extractDescription(cleanHTML)
-      
-      // 解析题目
-      const questions = this.parseQuestions(cleanHTML)
-      
+
+      // 从JavaScript代码中提取答案映射
+      const answersMap = this.extractAnswersFromScript(cleanHTML)
+
+      // 解析题目（传递答案映射）
+      const questions = this.parseQuestions(cleanHTML, answersMap)
+
       if (questions.length === 0) {
         return {
           success: false,
           error: '未找到任何题目，请检查HTML格式是否正确'
         }
       }
-      
+
       // 验证题目完整性
       const validationResult = this.validateQuestions(questions)
       if (validationResult.errors.length > 0) {
         warnings.push(...validationResult.warnings)
       }
-      
+
       return {
         success: true,
         data: {
@@ -81,7 +84,7 @@ export class HTMLQuestionParser {
         },
         warnings: warnings.length > 0 ? warnings : undefined
       }
-      
+
     } catch (error) {
       console.error('HTML解析错误:', error)
       return {
@@ -123,7 +126,7 @@ export class HTMLQuestionParser {
       /<header[^>]*>[\s\S]*?<p[^>]*>(.*?)<\/p>[\s\S]*?<\/header>/i,
       /<h1[^>]*>.*?<\/h1>\s*<p[^>]*>(.*?)<\/p>/i
     ]
-    
+
     for (const pattern of descPatterns) {
       const match = html.match(pattern)
       if (match && match[1]) {
@@ -134,63 +137,116 @@ export class HTMLQuestionParser {
         }
       }
     }
-    
+
     return null
   }
-  
+
+  /**
+   * 从JavaScript代码中提取答案映射
+   */
+  private static extractAnswersFromScript(html: string): { [key: string]: string } {
+    const answersMap: { [key: string]: string } = {}
+
+    try {
+      // 查找所有script标签
+      const scriptPattern = /<script[^>]*>([\s\S]*?)<\/script>/gi
+      let match
+
+      while ((match = scriptPattern.exec(html)) !== null) {
+        const scriptContent = match[1]
+
+        // 检查脚本是否包含答案对象
+        if (scriptContent.includes('answers')) {
+          console.log('找到包含答案的脚本')
+
+          // 尝试多种答案对象模式
+          // 模式1: const answers = { ... }
+          const answerObjectMatch = scriptContent.match(/(?:const\s+)?answers\s*=\s*\{([^}]+)\}/i)
+          if (answerObjectMatch) {
+            const answerContent = answerObjectMatch[1]
+            console.log('提取到答案内容:', answerContent.substring(0, 100) + '...')
+
+            // 解析答案键值对 - 支持多种格式
+            // 格式: q1: 'B', q1: "B", q1:'B', '1':'B', 1:'B' 等
+            const answerPairs = answerContent.match(/(q\d+|'q\d+'|"q\d+"|\d+|'\d+'|"\d+")\s*:\s*['"]([A-D])['"]/gi)
+            if (answerPairs) {
+              for (const pair of answerPairs) {
+                const pairMatch = pair.match(/(q\d+|'q\d+'|"q\d+"|\d+|'\d+'|"\d+")\s*:\s*['"]([A-D])['"]/i)
+                if (pairMatch) {
+                  let key = pairMatch[1]
+                  // 移除引号
+                  key = key.replace(/^['"]|['"]$/g, '')
+                  const answer = pairMatch[2]
+                  answersMap[key] = answer
+                  console.log(`找到答案: ${key} -> ${answer}`)
+                }
+              }
+            }
+          }
+        }
+      }
+
+      console.log(`总共提取 ${Object.keys(answersMap).length} 个答案`)
+    } catch (error) {
+      console.warn('从脚本提取答案失败:', error)
+    }
+
+    return answersMap
+  }
+
   /**
    * 解析题目列表
    */
-  private static parseQuestions(html: string): ParsedQuestion[] {
+  private static parseQuestions(html: string, answersMap?: { [key: string]: string }): ParsedQuestion[] {
     const questions: ParsedQuestion[] = []
-    
+
     // 查找所有题目块
     const questionBlockPattern = /<div[^>]*class=["']question-block["'][^>]*id=["']q(\d+)-block["'][^>]*>([\s\S]*?)<\/div>/gi
-    
+
     let match
     while ((match = questionBlockPattern.exec(html)) !== null) {
       const questionNumber = parseInt(match[1])
       const questionHTML = match[2]
-      
-      const question = this.parseQuestionBlock(questionHTML, questionNumber)
+
+      const question = this.parseQuestionBlock(questionHTML, questionNumber, answersMap)
       if (question) {
         questions.push(question)
       }
     }
-    
+
     // 如果没有找到标准格式，尝试其他模式
     if (questions.length === 0) {
       return this.parseAlternativeFormat(html)
     }
-    
+
     return questions.sort((a, b) => a.questionNumber - b.questionNumber)
   }
   
   /**
    * 解析单个题目块
    */
-  private static parseQuestionBlock(questionHTML: string, questionNumber: number): ParsedQuestion | null {
+  private static parseQuestionBlock(questionHTML: string, questionNumber: number, answersMap?: { [key: string]: string }): ParsedQuestion | null {
     try {
       // 提取题目文本
       const questionTextMatch = questionHTML.match(/<p[^>]*class=["']question-text["'][^>]*>(.*?)<\/p>/i)
       if (!questionTextMatch) return null
-      
+
       const questionText = this.cleanText(questionTextMatch[1])
-      
+
       // 提取选项
       const optionsMatch = questionHTML.match(/<ul[^>]*class=["']options-list["'][^>]*>([\s\S]*?)<\/ul>/i)
       if (!optionsMatch) return null
-      
+
       const optionsHTML = optionsMatch[1]
       const options = this.parseOptions(optionsHTML)
-      
+
       if (options.length < 4) return null
-      
+
       // 提取正确答案和解释
       const feedbackMatch = questionHTML.match(/<p[^>]*class=["']feedback["'][^>]*>(.*?)<\/p>/i)
       let correctAnswer = ''
       let explanation = ''
-      
+
       if (feedbackMatch) {
         const feedback = this.cleanText(feedbackMatch[1])
         const answerMatch = feedback.match(/正确答案[：:]\s*([A-D])/i)
@@ -199,10 +255,26 @@ export class HTMLQuestionParser {
         }
         explanation = feedback
       }
-      
+
+      // 如果feedback中没有找到答案，尝试从答案映射中查找
+      if (!correctAnswer && answersMap) {
+        const possibleKeys = [
+          `q${questionNumber}`,
+          questionNumber.toString(),
+          questionNumber
+        ]
+
+        for (const key of possibleKeys) {
+          if (answersMap[key]) {
+            correctAnswer = answersMap[key]
+            break
+          }
+        }
+      }
+
       // 提取章节信息（如果有的话）
       let section = this.extractSection(questionHTML, questionNumber)
-      
+
       return {
         questionNumber,
         section,
@@ -214,7 +286,7 @@ export class HTMLQuestionParser {
         correctAnswer,
         explanation
       }
-      
+
     } catch (error) {
       console.warn(`解析第${questionNumber}题时出错:`, error)
       return null
