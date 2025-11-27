@@ -16,7 +16,6 @@ import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
-import { Switch } from '@/components/ui/switch'
 import { useToast } from '@/hooks/use-toast'
 import { 
   Upload, 
@@ -48,6 +47,68 @@ import {
   PowerOff
 } from 'lucide-react'
 
+type ToggleSize = 'default' | 'sm'
+
+interface LocalToggleProps extends Omit<React.ButtonHTMLAttributes<HTMLButtonElement>, 'onChange'> {
+  checked: boolean
+  onChange?: (next: boolean) => void
+  disabled?: boolean
+  size?: ToggleSize
+}
+
+const toggleSizeMap: Record<ToggleSize, { width: number; height: number; padding: number }> = {
+  default: { width: 48, height: 26, padding: 2 },
+  sm: { width: 40, height: 22, padding: 2 }
+}
+
+const IOSToggle = ({ checked, onChange, disabled, size = 'default', className, ...props }: LocalToggleProps) => {
+  const config = toggleSizeMap[size]
+  const thumbSize = config.height - config.padding * 2
+
+  const handleToggle = () => {
+    if (disabled) return
+    onChange?.(!checked)
+  }
+
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      aria-disabled={disabled}
+      data-state={checked ? 'checked' : 'unchecked'}
+      disabled={disabled}
+      onClick={handleToggle}
+      style={{
+        width: config.width,
+        height: config.height,
+        minWidth: config.width,
+        minHeight: config.height,
+        maxWidth: config.width,
+        maxHeight: config.height,
+        borderRadius: config.height / 2,
+        backgroundColor: checked ? '#34c759' : '#e5e5ea',
+        borderColor: checked ? '#34c759' : '#e5e5ea',
+        boxSizing: 'border-box',
+      }}
+      className={`relative inline-flex items-center shrink-0 grow-0 cursor-pointer border p-0 m-0 transition-colors duration-200 ease-out disabled:cursor-not-allowed disabled:opacity-50 ${className || ''}`}
+      {...props}
+    >
+      <span
+        style={{
+          width: thumbSize,
+          height: thumbSize,
+          borderRadius: thumbSize / 2,
+          transform: `translateX(${checked ? config.width - thumbSize - config.padding * 2 : 0}px)`,
+          marginLeft: config.padding,
+          boxSizing: 'border-box',
+        }}
+        className="pointer-events-none block bg-white shadow-[0_1px_3px_rgba(0,0,0,0.3)] transition-transform duration-200 ease-out will-change-transform"
+      />
+    </button>
+  )
+}
+
 // 图标组件映射函数
 const getIconComponent = (iconName?: string) => {
   switch (iconName) {
@@ -71,6 +132,7 @@ interface ExamCategory {
   description?: string
   icon?: string
   color?: string
+  is_exam_enabled?: boolean
 }
 
 interface ParsedQuestion {
@@ -130,8 +192,10 @@ export default function TrainingImportPage() {
     name: '',
     description: '',
     icon: 'BookOpen',
-    color: '#3b82f6'
+    color: '#3b82f6',
+    isExamEnabled: true
   })
+  const [togglingCategoryId, setTogglingCategoryId] = useState<number | null>(null)
   
   // 题库详情查看状态
   const [viewingQuestionSet, setViewingQuestionSet] = useState<any>(null)
@@ -183,10 +247,17 @@ export default function TrainingImportPage() {
       
       if (categoriesRes.ok) {
         const categoriesData = await categoriesRes.json()
-        setCategories(categoriesData.data || [])
-        if (categoriesData.data?.length > 0) {
-          setSelectedCategory(categoriesData.data[0].id.toString())
-        }
+        const categoriesList: ExamCategory[] = categoriesData.data || []
+        setCategories(categoriesList)
+        setSelectedCategory((prevSelected) => {
+          if (prevSelected && categoriesList.some(cat => cat.id.toString() === prevSelected)) {
+            return prevSelected
+          }
+          if (categoriesList.length === 0) return ''
+          const enabledCategory = categoriesList.find(cat => cat.is_exam_enabled !== false)
+          const fallbackId = enabledCategory?.id ?? categoriesList[0]?.id
+          return fallbackId !== undefined ? fallbackId.toString() : ''
+        })
       }
       
       if (setsRes.ok) {
@@ -369,7 +440,8 @@ export default function TrainingImportPage() {
         name: category.name,
         description: category.description || '',
         icon: category.icon || 'BookOpen',
-        color: category.color || '#3b82f6'
+        color: category.color || '#3b82f6',
+        isExamEnabled: category.is_exam_enabled !== false
       })
     } else {
       setEditingCategory(null)
@@ -377,7 +449,8 @@ export default function TrainingImportPage() {
         name: '',
         description: '',
         icon: 'BookOpen',
-        color: '#3b82f6'
+        color: '#3b82f6',
+        isExamEnabled: true
       })
     }
     setCategoryDialogOpen(true)
@@ -390,7 +463,8 @@ export default function TrainingImportPage() {
       name: '',
       description: '',
       icon: 'BookOpen',
-      color: '#3b82f6'
+      color: '#3b82f6',
+      isExamEnabled: true
     })
   }
   
@@ -429,6 +503,37 @@ export default function TrainingImportPage() {
       setError('网络请求失败')
     } finally {
       setLoading(false)
+    }
+  }
+  
+  const handleToggleCategoryExam = async (category: ExamCategory, nextStatus: boolean) => {
+    if (!nextStatus) {
+      const confirmed = confirm(`确认关闭 "${category.name}" 的考试入口吗？关闭后员工将无法进入该考试。`)
+      if (!confirmed) return
+    }
+    
+    setTogglingCategoryId(category.id)
+    setError('')
+    
+    try {
+      const response = await fetch('/api/training/categories', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: category.id, isExamEnabled: nextStatus })
+      })
+      
+      const result = await response.json()
+      if (result.success) {
+        setSuccess(nextStatus ? `已开启 "${category.name}" 考试入口` : `已关闭 "${category.name}" 考试入口`)
+        loadInitialData()
+      } else {
+        setError(result.message || '更新考试开关失败')
+      }
+    } catch (error) {
+      console.error('更新考试开关失败:', error)
+      setError('网络请求失败')
+    } finally {
+      setTogglingCategoryId(null)
     }
   }
   
@@ -1251,10 +1356,11 @@ export default function TrainingImportPage() {
               <div className="grid gap-4">
                 {categories.map((category) => {
                   const CategoryIcon = iconMap[category.icon || 'BookOpen'] || BookOpen
+                  const examEnabled = category.is_exam_enabled !== false
                   return (
-                    <Card key={category.id}>
-                      <CardContent className="p-4">
-                        <div className="flex items-center justify-between">
+                    <Card key={category.id} className={!examEnabled ? 'border-dashed border-gray-300 bg-gray-50' : ''}>
+                      <CardContent className="p-4 space-y-4">
+                        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                           <div className="flex items-center gap-3">
                             <div 
                               className="w-10 h-10 rounded-lg flex items-center justify-center text-white"
@@ -1263,16 +1369,38 @@ export default function TrainingImportPage() {
                               <CategoryIcon className="w-5 h-5" />
                             </div>
                             <div>
-                              <div className="font-medium">{category.name}</div>
+                              <div className="font-medium flex items-center gap-2">
+                                {category.name}
+                                {!examEnabled && (
+                                  <Badge variant="destructive" className="text-xs">
+                                    考试未开启
+                                  </Badge>
+                                )}
+                              </div>
                               <div className="text-sm text-muted-foreground">
                                 {category.description || '无描述'}
                               </div>
                             </div>
                           </div>
-                          <div className="flex items-center gap-2">
-                            <Badge variant="outline">
+                          <div className="flex items-center gap-3">
+                            <Badge variant="outline" className="whitespace-nowrap">
                               ID: {category.id}
                             </Badge>
+                          </div>
+                        </div>
+                        <div className="flex items-center justify-between border-t pt-4 text-sm text-muted-foreground">
+                          <div className="flex items-center gap-2">
+                            <span>{examEnabled ? '员工可参加' : '入口已关闭'}</span>
+                            <IOSToggle
+                              id={`category-switch-${category.id}`}
+                              checked={examEnabled}
+                              onChange={(next) => handleToggleCategoryExam(category, next)}
+                              disabled={togglingCategoryId === category.id}
+                              aria-label={`切换${category.name}考试开关`}
+                              size="sm"
+                            />
+                          </div>
+                          <div className="flex items-center gap-2">
                             <Button 
                               variant="outline" 
                               size="sm"
@@ -1417,6 +1545,23 @@ export default function TrainingImportPage() {
                       </div>
                     </div>
                   </div>
+                </div>
+                
+                {/* 考试开关 */}
+                <div className="flex items-center justify-between space-x-2 p-3 border rounded-lg bg-gray-50">
+                  <div className="flex flex-col">
+                    <Label htmlFor="category-exam-enabled" className="text-sm font-medium">
+                      允许员工参加考试
+                    </Label>
+                    <p className="text-sm text-muted-foreground">
+                      关闭后，该类别将在员工考试列表中置灰并不可进入
+                    </p>
+                  </div>
+                  <IOSToggle
+                    id="category-exam-enabled"
+                    checked={categoryFormData.isExamEnabled}
+                    onChange={(next) => setCategoryFormData(prev => ({ ...prev, isExamEnabled: next }))}
+                  />
                 </div>
               </div>
               
@@ -1645,10 +1790,10 @@ export default function TrainingImportPage() {
                       关闭后，用户完成考试只能看到"已完成"状态，无法查看具体分数和答题详情
                     </p>
                   </div>
-                  <Switch
+                  <IOSToggle
                     id="edit-allow-view-score"
                     checked={editSetFormData.allow_view_score}
-                    onCheckedChange={(checked) => setEditSetFormData(prev => ({ ...prev, allow_view_score: checked }))}
+                    onChange={(next) => setEditSetFormData(prev => ({ ...prev, allow_view_score: next }))}
                   />
                 </div>
               </div>
