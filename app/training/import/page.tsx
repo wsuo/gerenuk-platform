@@ -17,7 +17,7 @@ import { Progress } from '@/components/ui/progress'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { useToast } from '@/hooks/use-toast'
-import { 
+import {
   Upload, 
   FileText, 
   CheckCircle, 
@@ -46,68 +46,7 @@ import {
   Power,
   PowerOff
 } from 'lucide-react'
-
-type ToggleSize = 'default' | 'sm'
-
-interface LocalToggleProps extends Omit<React.ButtonHTMLAttributes<HTMLButtonElement>, 'onChange'> {
-  checked: boolean
-  onChange?: (next: boolean) => void
-  disabled?: boolean
-  size?: ToggleSize
-}
-
-const toggleSizeMap: Record<ToggleSize, { width: number; height: number; padding: number }> = {
-  default: { width: 48, height: 26, padding: 2 },
-  sm: { width: 40, height: 22, padding: 2 }
-}
-
-const IOSToggle = ({ checked, onChange, disabled, size = 'default', className, ...props }: LocalToggleProps) => {
-  const config = toggleSizeMap[size]
-  const thumbSize = config.height - config.padding * 2
-
-  const handleToggle = () => {
-    if (disabled) return
-    onChange?.(!checked)
-  }
-
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={checked}
-      aria-disabled={disabled}
-      data-state={checked ? 'checked' : 'unchecked'}
-      disabled={disabled}
-      onClick={handleToggle}
-      style={{
-        width: config.width,
-        height: config.height,
-        minWidth: config.width,
-        minHeight: config.height,
-        maxWidth: config.width,
-        maxHeight: config.height,
-        borderRadius: config.height / 2,
-        backgroundColor: checked ? '#34c759' : '#e5e5ea',
-        borderColor: checked ? '#34c759' : '#e5e5ea',
-        boxSizing: 'border-box',
-      }}
-      className={`relative inline-flex items-center shrink-0 grow-0 cursor-pointer border p-0 m-0 transition-colors duration-200 ease-out disabled:cursor-not-allowed disabled:opacity-50 ${className || ''}`}
-      {...props}
-    >
-      <span
-        style={{
-          width: thumbSize,
-          height: thumbSize,
-          borderRadius: thumbSize / 2,
-          transform: `translateX(${checked ? config.width - thumbSize - config.padding * 2 : 0}px)`,
-          marginLeft: config.padding,
-          boxSizing: 'border-box',
-        }}
-        className="pointer-events-none block bg-white shadow-[0_1px_3px_rgba(0,0,0,0.3)] transition-transform duration-200 ease-out will-change-transform"
-      />
-    </button>
-  )
-}
+import { IOSToggle } from '@/components/ui/ios-toggle'
 
 // 图标组件映射函数
 const getIconComponent = (iconName?: string) => {
@@ -507,11 +446,6 @@ export default function TrainingImportPage() {
   }
   
   const handleToggleCategoryExam = async (category: ExamCategory, nextStatus: boolean) => {
-    if (!nextStatus) {
-      const confirmed = confirm(`确认关闭 "${category.name}" 的考试入口吗？关闭后员工将无法进入该考试。`)
-      if (!confirmed) return
-    }
-    
     setTogglingCategoryId(category.id)
     setError('')
     
@@ -524,14 +458,28 @@ export default function TrainingImportPage() {
       
       const result = await response.json()
       if (result.success) {
-        setSuccess(nextStatus ? `已开启 "${category.name}" 考试入口` : `已关闭 "${category.name}" 考试入口`)
+        toast({
+          title: nextStatus ? '已开启考试入口' : '已关闭考试入口',
+          description: `${category.name} ${nextStatus ? '现在员工可以参加' : '已对员工隐藏'}`
+        })
         loadInitialData()
       } else {
-        setError(result.message || '更新考试开关失败')
+        const message = result.message || '更新考试开关失败'
+        setError(message)
+        toast({
+          title: '操作失败',
+          description: message,
+          variant: 'destructive'
+        })
       }
     } catch (error) {
       console.error('更新考试开关失败:', error)
       setError('网络请求失败')
+      toast({
+        title: '网络错误',
+        description: '更新考试开关失败，请稍后再试',
+        variant: 'destructive'
+      })
     } finally {
       setTogglingCategoryId(null)
     }

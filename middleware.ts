@@ -49,7 +49,8 @@ export async function middleware(request: NextRequest) {
       '/api/dify-chat', // Dify 智能体 API
       '/api/training/integrate-jiahe', // 嘉禾面试集成API
       '/api/jiahe-interview/replace-questions', // 嘉禾面试题目替换API
-      '/api/training/sync-jiahe-questions' // 嘉禾面试题目同步API
+      '/api/training/sync-jiahe-questions', // 嘉禾面试题目同步API
+      '/api/migrate/add-exam-toggle'
     ]
 
     // 检查是否为公开API路由
