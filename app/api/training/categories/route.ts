@@ -45,6 +45,7 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
     const { name, description, icon, color, sortOrder } = body
+    const rawExamEnabled = body.isExamEnabled ?? body.is_exam_enabled
     
     if (!name || !name.trim()) {
       return NextResponse.json(
@@ -70,7 +71,8 @@ export async function POST(request: NextRequest) {
       icon: icon || 'BookOpen',
       color: color || '#3b82f6',
       sort_order: sortOrder || 0,
-      is_active: true
+      is_active: true,
+      is_exam_enabled: rawExamEnabled !== undefined ? Boolean(rawExamEnabled) : true
     })
     
     return NextResponse.json({
@@ -97,6 +99,7 @@ export async function PUT(request: NextRequest) {
   try {
     const body = await request.json()
     const { id, name, description, icon, color, sortOrder, isActive } = body
+    const rawExamEnabled = body.isExamEnabled ?? body.is_exam_enabled
     
     if (!id) {
       return NextResponse.json(
@@ -134,6 +137,8 @@ export async function PUT(request: NextRequest) {
     if (color !== undefined) updates.color = color
     if (sortOrder !== undefined) updates.sort_order = sortOrder
     if (isActive !== undefined) updates.is_active = isActive
+    
+    if (rawExamEnabled !== undefined) updates.is_exam_enabled = Boolean(rawExamEnabled)
     
     const success = await examCategoryDB.updateCategory(id, updates)
     

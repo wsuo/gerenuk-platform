@@ -39,6 +39,13 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       )
     }
+
+    if (category.is_exam_enabled === false) {
+      return NextResponse.json(
+        { success: false, message: `"${category.name}" 考核暂未开放，请联系管理员开启后再试` },
+        { status: 403 }
+      )
+    }
     
     // 根据类别随机获取一套试卷
     const questionSet = await questionSetDB.getRandomSetByCategory(categoryId)

@@ -29,10 +29,18 @@ export async function POST(request: NextRequest) {
         color VARCHAR(20) DEFAULT '#3b82f6' COMMENT '主题色',
         sort_order INT DEFAULT 0 COMMENT '排序',
         is_active BOOLEAN DEFAULT TRUE COMMENT '是否启用',
+        is_exam_enabled BOOLEAN DEFAULT TRUE COMMENT '考试是否允许员工参加',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
         UNIQUE KEY unique_name (name)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='考核类别表'`,
+
+      // 1.1 为已有考核类别增加开关
+      `ALTER TABLE exam_categories 
+       ADD COLUMN IF NOT EXISTS is_exam_enabled BOOLEAN DEFAULT TRUE COMMENT '考试是否允许员工参加'`,
+      
+      // 1.2 初始化空值
+      `UPDATE exam_categories SET is_exam_enabled = TRUE WHERE is_exam_enabled IS NULL`,
 
       // 2. 为 question_sets 表添加类别字段
       `ALTER TABLE question_sets 
