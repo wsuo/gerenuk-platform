@@ -34,6 +34,7 @@ interface ExamCategory {
   color?: string
   question_sets_count?: number
   total_questions?: number
+  is_exam_enabled?: boolean
 }
 
 interface QuestionSet {
@@ -90,18 +91,30 @@ export default function TrainingEntryPage() {
       if (startResponse.ok) {
         const result = await startResponse.json()
         if (result.success) {
-          setCategories(result.data.categories || [])
-          setAvailableSets(result.data.questionSets || [])
-          
-          // 设置默认选择的类别（选择第一个有题库的类别）
-          if (result.data.categories?.length > 0) {
-            const categoryWithSets = result.data.categories.find((cat: ExamCategory) => 
-              result.data.questionSets?.some((set: QuestionSet) => set.category?.id === cat.id)
-            )
-            if (categoryWithSets) {
-              setSelectedCategory(categoryWithSets.id.toString())
+          const categoriesData: ExamCategory[] = result.data.categories || []
+          const questionSetsData: QuestionSet[] = result.data.questionSets || []
+          setCategories(categoriesData)
+          setAvailableSets(questionSetsData)
+
+          const hasUsableSets = (categoryId: number) =>
+            questionSetsData.some((set) => set.category?.id === categoryId)
+
+          const defaultCategory = categoriesData.find(
+            (cat) => cat.is_exam_enabled !== false && hasUsableSets(cat.id)
+          )
+
+          setSelectedCategory((prevSelected) => {
+            if (prevSelected) {
+              const prevId = parseInt(prevSelected)
+              const stillAvailable = categoriesData.some(
+                (cat) => cat.id === prevId && cat.is_exam_enabled !== false && hasUsableSets(cat.id)
+              )
+              if (stillAvailable) {
+                return prevSelected
+              }
             }
-          }
+            return defaultCategory ? defaultCategory.id.toString() : ''
+          })
         }
       }
       
@@ -169,6 +182,8 @@ export default function TrainingEntryPage() {
   // 获取选中类别的题库
   const getCategoryQuestionSets = (categoryId: string) => {
     if (!categoryId) return []
+    const category = categories.find(cat => cat.id === parseInt(categoryId))
+    if (category?.is_exam_enabled === false) return []
     return availableSets.filter(set => set.category?.id === parseInt(categoryId))
   }
 
@@ -231,18 +246,21 @@ export default function TrainingEntryPage() {
                         const totalQuestions = availableSets
                           .filter(set => set.category?.id === category.id)
                           .reduce((sum, set) => sum + set.questionsCount, 0)
+                        const examEnabled = category.is_exam_enabled !== false
+                        const isSelectable = examEnabled && setsCount > 0
                         
                         return (
                           <div
                             key={category.id}
-                            onClick={() => setsCount > 0 && setSelectedCategory(category.id.toString())}
+                            onClick={() => isSelectable && setSelectedCategory(category.id.toString())}
                             className={`p-4 border-2 rounded-lg cursor-pointer transition-all duration-200 ${
                               selectedCategory === category.id.toString()
                                 ? 'border-blue-500 bg-blue-50 shadow-md'
-                                : setsCount > 0
+                                : isSelectable
                                 ? 'border-gray-200 hover:border-gray-300 hover:shadow-sm'
-                                : 'border-gray-100 bg-gray-50 cursor-not-allowed opacity-50'
+                                : 'border-gray-100 bg-gray-50 cursor-not-allowed opacity-60'
                             }`}
+                            aria-disabled={!isSelectable}
                           >
                             <div className="flex items-center gap-3">
                               <div 
@@ -252,11 +270,18 @@ export default function TrainingEntryPage() {
                                 <IconComponent className="w-5 h-5 text-white" />
                               </div>
                               <div className="flex-1">
-                                <div className="font-medium text-gray-900">{category.name}</div>
+                                <div className="font-medium text-gray-900 flex items-center gap-2">
+                                  {category.name}
+                                  {!examEnabled && (
+                                    <Badge variant="destructive" className="text-xs">
+                                      考试未开启
+                                    </Badge>
+                                  )}
+                                </div>
                                 <div className="text-sm text-gray-500 mt-1">
                                   {category.description || '暂无描述'}
                                 </div>
-                                <div className="flex items-center gap-4 mt-2">
+                                <div className="flex items-center gap-4 mt-2 flex-wrap text-sm">
                                   <Badge variant={setsCount > 0 ? "secondary" : "outline"}>
                                     {setsCount} 套试卷
                                   </Badge>
@@ -385,11 +410,23 @@ export default function TrainingEntryPage() {
                         )}
                       </div>
                     </div>
+                    
+                    {selectedCategory && selectedCategoryData?.is_exam_enabled === false && (
+                      <div className="text-sm text-orange-600 -mt-2">
+                        该考核暂未开放，请先选择其他类别或联系管理员开启
+                      </div>
+                    )}
 
                     <Button
                       type="submit"
                       className="w-full text-lg py-6"
-                      disabled={isLoading || !employeeName.trim() || !selectedCategory || categoryQuestionSets.length === 0}
+                      disabled={
+                        isLoading || 
+                        !employeeName.trim() || 
+                        !selectedCategory || 
+                        categoryQuestionSets.length === 0 ||
+                        selectedCategoryData?.is_exam_enabled === false
+                      }
                       size="lg"
                     >
                       {isLoading ? (

@@ -78,6 +78,7 @@ interface ExamCategory {
   description?: string
   icon?: string
   color?: string
+  is_exam_enabled?: boolean
 }
 
 interface AnswerDetail {
