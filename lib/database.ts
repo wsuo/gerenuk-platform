@@ -181,6 +181,7 @@ export interface ExamCategory {
   color?: string
   sort_order?: number
   is_active?: boolean
+  is_exam_enabled?: boolean
   allow_view_score?: boolean
   created_at?: string
   updated_at?: string
@@ -644,7 +645,7 @@ export class ExamCategoryDB {
   }
   
   async insertCategory(category: Omit<ExamCategory, 'id' | 'created_at' | 'updated_at'>): Promise<number> {
-    const sql = `INSERT INTO exam_categories (name, description, icon, color, sort_order, is_active, allow_view_score) VALUES (?, ?, ?, ?, ?, ?, ?)`
+    const sql = `INSERT INTO exam_categories (name, description, icon, color, sort_order, is_active, allow_view_score, is_exam_enabled) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
     const result = await executeCompatibleRun(sql, [
       category.name, 
       category.description || null, 
@@ -652,12 +653,13 @@ export class ExamCategoryDB {
       category.color || '#3b82f6',
       category.sort_order || 0,
       category.is_active ?? true,
-      category.allow_view_score ?? true
+      category.allow_view_score ?? true,
+      category.is_exam_enabled ?? true
     ])
     return result.lastInsertRowid
   }
   
-  async updateCategory(id: number, updates: Partial<Pick<ExamCategory, 'name' | 'description' | 'icon' | 'color' | 'sort_order' | 'is_active' | 'allow_view_score'>>): Promise<boolean> {
+  async updateCategory(id: number, updates: Partial<Pick<ExamCategory, 'name' | 'description' | 'icon' | 'color' | 'sort_order' | 'is_active' | 'allow_view_score' | 'is_exam_enabled'>>): Promise<boolean> {
     const updateFields: string[] = []
     const values: any[] = []
     
@@ -694,6 +696,8 @@ export class ExamCategoryDB {
         c.color,
         c.sort_order,
         c.is_active,
+        c.allow_view_score,
+        c.is_exam_enabled,
         c.created_at,
         c.updated_at,
         COALESCE(qs.question_sets_count, 0) as question_sets_count,
