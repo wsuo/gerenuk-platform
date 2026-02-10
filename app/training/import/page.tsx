@@ -11,12 +11,14 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { useToast } from '@/hooks/use-toast'
+import { normalizeChoiceAnswer } from '@/lib/choice-answer'
 import {
   Upload, 
   FileText, 
@@ -572,10 +574,19 @@ export default function TrainingImportPage() {
     
     setIsSavingQuestion(true)
     try {
+      const questionType: 'single' | 'multiple' =
+        editingQuestion.question_type === 'multiple' ? 'multiple' : 'single'
+      const normalizedCorrect = normalizeChoiceAnswer(editingQuestion.correct_answer || '')
+      const payload = {
+        ...editingQuestion,
+        question_type: questionType,
+        correct_answer: normalizedCorrect
+      }
+
       const response = await fetch(`/api/admin/questions/${editingQuestion.id}`, {
         method: 'PUT',
         headers: getAuthHeaders(),
-        body: JSON.stringify(editingQuestion)
+        body: JSON.stringify(payload)
       })
       
       const result = await response.json()
@@ -1900,22 +1911,29 @@ export default function TrainingImportPage() {
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label htmlFor="correct_answer">正确答案 *</Label>
-                  <Select 
-                    value={editingQuestion.correct_answer} 
-                    onValueChange={(value) => setEditingQuestion({
-                      ...editingQuestion,
-                      correct_answer: value
-                    })}
+                  <Label htmlFor="question_type">题型 *</Label>
+                  <Select
+                    value={editingQuestion.question_type || 'single'}
+                    onValueChange={(value) => {
+                      const nextType = value === 'multiple' ? 'multiple' : 'single'
+                      const currentCorrect = normalizeChoiceAnswer(editingQuestion.correct_answer || '')
+                      const nextCorrect =
+                        nextType === 'single'
+                          ? (currentCorrect ? currentCorrect[0] : '')
+                          : currentCorrect
+                      setEditingQuestion({
+                        ...editingQuestion,
+                        question_type: nextType,
+                        correct_answer: nextCorrect
+                      })
+                    }}
                   >
                     <SelectTrigger>
-                      <SelectValue placeholder="选择正确答案" />
+                      <SelectValue placeholder="选择题型" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="A">A</SelectItem>
-                      <SelectItem value="B">B</SelectItem>
-                      <SelectItem value="C">C</SelectItem>
-                      <SelectItem value="D">D</SelectItem>
+                      <SelectItem value="single">单选</SelectItem>
+                      <SelectItem value="multiple">多选</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -1931,6 +1949,66 @@ export default function TrainingImportPage() {
                     placeholder="题目所属章节"
                   />
                 </div>
+              </div>
+
+              <div>
+                <Label htmlFor="correct_answer">正确答案 *</Label>
+                {(editingQuestion.question_type || 'single') === 'single' ? (
+                  <Select
+                    value={normalizeChoiceAnswer(editingQuestion.correct_answer || '')}
+                    onValueChange={(value) =>
+                      setEditingQuestion({
+                        ...editingQuestion,
+                        correct_answer: value
+                      })
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="选择正确答案" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="A">A</SelectItem>
+                      <SelectItem value="B">B</SelectItem>
+                      <SelectItem value="C">C</SelectItem>
+                      <SelectItem value="D">D</SelectItem>
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <>
+                    <div className="grid grid-cols-2 gap-3">
+                      {['A', 'B', 'C', 'D'].map((opt) => {
+                        const normalized = normalizeChoiceAnswer(editingQuestion.correct_answer || '')
+                        const checked = normalized.includes(opt)
+                        return (
+                          <label
+                            key={opt}
+                            className="flex items-center gap-2 rounded-md border p-2 cursor-pointer select-none"
+                          >
+                            <Checkbox
+                              checked={checked}
+                              onCheckedChange={() => {
+                                const current = normalizeChoiceAnswer(editingQuestion.correct_answer || '')
+                                const set = new Set(current.split(''))
+                                if (set.has(opt)) set.delete(opt)
+                                else set.add(opt)
+                                const next = normalizeChoiceAnswer(Array.from(set).join(''))
+                                setEditingQuestion({
+                                  ...editingQuestion,
+                                  correct_answer: next
+                                })
+                              }}
+                              aria-label={`选择正确答案选项 ${opt}`}
+                            />
+                            <span className="font-medium">{opt}</span>
+                          </label>
+                        )
+                      })}
+                    </div>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      多选题正确答案会按 A-D 去重排序保存，例如 AC。
+                    </p>
+                  </>
+                )}
               </div>
 
               <div>

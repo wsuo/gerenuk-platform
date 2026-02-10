@@ -10,14 +10,21 @@ import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { CheckCircle, Clock, User, BookOpen, AlertCircle, ArrowLeft, ArrowRight, GraduationCap, MousePointer2, X, Info, Brain, Users } from 'lucide-react'
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
-import { Label } from '@/components/ui/label'
 import { PERSONALITY_TEST_SET_ID, PERSONALITY_TEST_CATEGORY_ID } from '@/lib/personality-test-config'
 import { JIAHE_INTERVIEW_CATEGORY_NAME, JIAHE_INTERVIEW_SET_NAME } from '@/lib/jiahe-interview-constants'
+import { Checkbox } from '@/components/ui/checkbox'
+import { normalizeChoiceAnswer } from '@/lib/choice-answer'
 
 interface ExamData {
   sessionId: string
   employeeName: string
+  category?: {
+    id: number
+    name: string
+    description?: string
+    color?: string
+    icon?: string
+  }
   questionSet: {
     id: number
     name: string
@@ -32,6 +39,7 @@ interface Question {
   id: number
   questionNumber: number
   section: string
+  questionType?: 'single' | 'multiple'
   questionText: string
   optionA: string
   optionB: string
@@ -299,21 +307,33 @@ export default function TrainingExamPage() {
   }, [examData])
 
   // 处理答案选择
-  const handleAnswerSelect = (questionId: number, selectedAnswer: string) => {
-    const newAnswers = { ...answers, [questionId]: selectedAnswer }
+  const handleAnswerSelect = (question: Question, selectedOption: string) => {
+    const questionType = question.questionType || 'single'
+    let nextAnswer = selectedOption
+
+    if (questionType === 'multiple') {
+      const current = normalizeChoiceAnswer(answers[question.id] || '')
+      const set = new Set(current.split(''))
+      if (set.has(selectedOption)) set.delete(selectedOption)
+      else set.add(selectedOption)
+      nextAnswer = normalizeChoiceAnswer(Array.from(set).join(''))
+    }
+
+    const newAnswers = { ...answers, [question.id]: nextAnswer }
     setAnswers(newAnswers)
     saveAnswersToLocal(newAnswers)
   }
 
   // 处理双击选项：选择答案并跳转到下一题
-  const handleDoubleClickOption = (questionId: number, selectedAnswer: string) => {
-    // 首先选择答案
-    handleAnswerSelect(questionId, selectedAnswer)
-    
-    // 延迟一点时间让用户看到选择效果，然后跳转到下一题
-    setTimeout(() => {
-      goToNextQuestion()
-    }, 300) // 300ms延迟，让用户看到选择效果
+  const handleDoubleClickOption = (question: Question, selectedOption: string) => {
+    // 多选题不做“双击选完跳下一题”，避免误触导致漏选
+    if ((question.questionType || 'single') === 'multiple') {
+      handleAnswerSelect(question, selectedOption)
+      return
+    }
+
+    handleAnswerSelect(question, selectedOption)
+    setTimeout(() => goToNextQuestion(), 300)
   }
 
   // 关闭双击提示
@@ -1191,10 +1211,21 @@ export default function TrainingExamPage() {
                                 {currentQuestion.section === 'logic' ? '逻辑推理' : currentQuestion.section === 'personality' ? '性格测试' : currentQuestion.section}
                               </Badge>
                             )}
+                            {(currentQuestion.questionType || 'single') === 'multiple' && (
+                              <Badge variant="outline" className="border-amber-200 text-amber-700">
+                                多选
+                              </Badge>
+                            )}
                           </div>
                           <CardTitle className="text-lg lg:text-xl leading-relaxed text-gray-700">
                             {currentQuestion.questionText}
                           </CardTitle>
+                          {(currentQuestion.questionType || 'single') === 'multiple' && (
+                            <p className="mt-2 text-sm text-gray-600">
+                              <span className="font-medium">本题为多选题：</span>
+                              可选择多个选项；少选/多选均不得分。
+                            </p>
+                          )}
                         </div>
                       </div>
                     </CardHeader>
@@ -1207,7 +1238,11 @@ export default function TrainingExamPage() {
                           { key: 'C', text: currentQuestion.optionC },
                           { key: 'D', text: currentQuestion.optionD }
                         ].filter(option => option.text && option.text.trim() !== '').map(option => {
-                          const isSelected = answers[currentQuestion.id] === option.key
+                          const questionType = currentQuestion.questionType || 'single'
+                          const currentAnswer = answers[currentQuestion.id] || ''
+                          const isSelected = questionType === 'multiple'
+                            ? currentAnswer.includes(option.key)
+                            : currentAnswer === option.key
                           const themeColor = isJiaheInterview 
                             ? currentQuestion.section === 'logic' ? 'blue' : 'purple'
                             : 'emerald'
@@ -1215,8 +1250,8 @@ export default function TrainingExamPage() {
                           return (
                             <div 
                               key={option.key}
-                              onClick={() => handleAnswerSelect(currentQuestion.id, option.key)}
-                              onDoubleClick={() => handleDoubleClickOption(currentQuestion.id, option.key)}
+                              onClick={() => handleAnswerSelect(currentQuestion, option.key)}
+                              onDoubleClick={() => handleDoubleClickOption(currentQuestion, option.key)}
                               className={`flex items-start space-x-3 p-3 lg:p-4 rounded-lg border-2 transition-all duration-200 cursor-pointer ${
                                 isSelected 
                                   ? themeColor === 'blue' 
@@ -1230,8 +1265,18 @@ export default function TrainingExamPage() {
                                       ? 'border-gray-200 hover:border-purple-200 hover:bg-purple-50/30'
                                       : 'border-gray-200 hover:border-emerald-200 hover:bg-emerald-50/30'
                               }`}
-                              title="双击可选择答案并自动跳转到下一题"
+                              title={questionType === 'single' ? '双击可选择答案并自动跳转到下一题' : '点击可切换选项'}
                             >
+                              {questionType === 'multiple' && (
+                                <div className="pt-1">
+                                  <Checkbox
+                                    checked={isSelected}
+                                    onClick={(e) => e.stopPropagation()}
+                                    onCheckedChange={() => handleAnswerSelect(currentQuestion, option.key)}
+                                    aria-label={`选择选项 ${option.key}`}
+                                  />
+                                </div>
+                              )}
                               <div className="flex-1 cursor-pointer leading-relaxed text-sm lg:text-base">
                                 <span className={`font-medium mr-2 lg:mr-3 inline-flex items-center justify-center w-5 h-5 lg:w-6 lg:h-6 rounded-full text-xs ${
                                   isSelected 

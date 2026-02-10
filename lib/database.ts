@@ -204,6 +204,8 @@ export interface Question {
   set_id: number
   question_number: number
   section?: string
+  // 题型：single=单选；multiple=多选（正确答案为去重排序后的字母串，如 AC）
+  question_type?: 'single' | 'multiple'
   question_text: string
   option_a: string
   option_b: string
@@ -814,11 +816,12 @@ export class QuestionDB {
   }
 
   async insertQuestion(question: Omit<Question, 'id' | 'created_at'>): Promise<number> {
-    const sql = `INSERT INTO questions (set_id, question_number, section, question_text, option_a, option_b, option_c, option_d, correct_answer, explanation) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    const sql = `INSERT INTO questions (set_id, question_number, section, question_type, question_text, option_a, option_b, option_c, option_d, correct_answer, explanation) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     const result = await executeCompatibleRun(sql, [
       question.set_id,
       question.question_number,
       question.section || null,
+      question.question_type || 'single',
       question.question_text,
       question.option_a,
       question.option_b,

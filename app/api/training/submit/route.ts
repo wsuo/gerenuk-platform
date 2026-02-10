@@ -4,6 +4,7 @@ import { calculatePersonalityTest, generatePersonalityReport } from '@/lib/perso
 import { PERSONALITY_TEST_SET_ID, PERSONALITY_TEST_CATEGORY_ID } from '@/lib/personality-test-config'
 import { isJiaheInterviewCategory, isJiaheInterviewSet } from '@/lib/jiahe-interview-constants'
 import { JiaheInterviewAnalyzer } from '@/lib/jiahe-interview-analyzer'
+import { isChoiceAnswerCorrect, normalizeChoiceAnswer } from '@/lib/choice-answer'
 
 interface AnswerItem {
   questionId: number
@@ -137,7 +138,7 @@ export async function POST(request: NextRequest) {
       for (const question of questions) {
         const selectedAnswer = answers[question.id!]
         const isLogicQuestion = question.section === 'logic'
-        const isCorrect = isLogicQuestion ? (selectedAnswer === question.correct_answer) : true
+        const isCorrect = isLogicQuestion ? isChoiceAnswerCorrect(selectedAnswer, question.correct_answer) : true
         
         if (isLogicQuestion && isCorrect) {
           correctCount++
@@ -151,8 +152,8 @@ export async function POST(request: NextRequest) {
           optionB: question.option_b,
           optionC: question.option_c,
           optionD: question.option_d,
-          selectedAnswer: selectedAnswer || '',
-          correctAnswer: isLogicQuestion ? question.correct_answer : '',
+          selectedAnswer: normalizeChoiceAnswer(selectedAnswer || ''),
+          correctAnswer: isLogicQuestion ? normalizeChoiceAnswer(question.correct_answer) : '',
           isCorrect,
           explanation: question.explanation || ''
         })
@@ -180,7 +181,7 @@ export async function POST(request: NextRequest) {
           optionB: question.option_b,
           optionC: question.option_c,
           optionD: question.option_d,
-          selectedAnswer: selectedAnswer || '',
+          selectedAnswer: normalizeChoiceAnswer(selectedAnswer || ''),
           correctAnswer: '', // 面试测试无标准答案
           isCorrect: true, // 面试测试所有答案都视为"正确"
           explanation: question.explanation || ''
@@ -195,7 +196,7 @@ export async function POST(request: NextRequest) {
       // 传统考试：按正确答案评分
       for (const question of questions) {
         const selectedAnswer = answers[question.id!]
-        const isCorrect = selectedAnswer === question.correct_answer
+        const isCorrect = isChoiceAnswerCorrect(selectedAnswer, question.correct_answer)
         
         if (isCorrect) {
           correctCount++
@@ -209,8 +210,8 @@ export async function POST(request: NextRequest) {
           optionB: question.option_b,
           optionC: question.option_c,
           optionD: question.option_d,
-          selectedAnswer: selectedAnswer || '',
-          correctAnswer: question.correct_answer,
+          selectedAnswer: normalizeChoiceAnswer(selectedAnswer || ''),
+          correctAnswer: normalizeChoiceAnswer(question.correct_answer),
           isCorrect,
           explanation: question.explanation || ''
         })

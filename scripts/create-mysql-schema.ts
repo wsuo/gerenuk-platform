@@ -252,7 +252,8 @@ async function createMySQLSchema() {
         option_b VARCHAR(500) NOT NULL,
         option_c VARCHAR(500) NOT NULL,
         option_d VARCHAR(500) NOT NULL,
-        correct_answer CHAR(1) NOT NULL,
+        correct_answer VARCHAR(10) NOT NULL COMMENT '正确答案：单选A-D；多选为去重排序后的字母串如ACD',
+        question_type VARCHAR(10) NOT NULL DEFAULT 'single' COMMENT '题型：single/multiple',
         explanation TEXT,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (set_id) REFERENCES question_sets (id) ON DELETE CASCADE
@@ -333,6 +334,7 @@ async function createMySQLSchema() {
       'CREATE INDEX idx_progress_records_feature_item_id ON progress_records (feature_item_id)',
       'CREATE INDEX idx_questions_set_id ON questions (set_id)',
       'CREATE INDEX idx_questions_question_number ON questions (question_number)',
+      'CREATE INDEX idx_questions_type ON questions (question_type)',
       'CREATE INDEX idx_training_records_employee_name ON training_records (employee_name)',
       'CREATE INDEX idx_training_records_set_id ON training_records (set_id)',
       'CREATE INDEX idx_training_records_completed_at ON training_records (completed_at)'

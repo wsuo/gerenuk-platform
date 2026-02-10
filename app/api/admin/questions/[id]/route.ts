@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { normalizeChoiceAnswer } from '@/lib/choice-answer'
 
 // 获取单个题目详情
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -35,6 +36,8 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     const questionId = parseInt(id)
     const updates = await request.json()
     
+    const questionType: 'single' | 'multiple' = updates.question_type === 'multiple' ? 'multiple' : 'single'
+
     // 验证必填字段
     const requiredFields = ['question_text', 'option_a', 'option_b', 'option_c', 'option_d', 'correct_answer']
     for (const field of requiredFields) {
@@ -47,11 +50,21 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     }
     
     // 验证正确答案格式
-    if (!['A', 'B', 'C', 'D'].includes(updates.correct_answer)) {
-      return NextResponse.json({ 
-        success: false, 
-        error: '正确答案必须是 A、B、C、D 中的一个' 
-      }, { status: 400 })
+    const normalizedCorrect = normalizeChoiceAnswer(updates.correct_answer)
+    if (questionType === 'single') {
+      if (normalizedCorrect.length !== 1) {
+        return NextResponse.json({ 
+          success: false, 
+          error: '单选题正确答案必须是 A、B、C、D 中的一个' 
+        }, { status: 400 })
+      }
+    } else {
+      if (normalizedCorrect.length < 2) {
+        return NextResponse.json({ 
+          success: false, 
+          error: '多选题正确答案至少需要选择 2 个选项（A-D）' 
+        }, { status: 400 })
+      }
     }
     
     // 执行更新
@@ -63,6 +76,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         option_b = ?, 
         option_c = ?, 
         option_d = ?, 
+        question_type = ?,
         correct_answer = ?, 
         explanation = ?,
         section = ?
@@ -73,7 +87,8 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         updates.option_b,
         updates.option_c,
         updates.option_d,
-        updates.correct_answer,
+        questionType,
+        normalizedCorrect,
         updates.explanation || null,
         updates.section || null,
         questionId

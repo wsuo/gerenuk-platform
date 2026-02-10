@@ -7,6 +7,19 @@ export async function POST(request: NextRequest) {
     console.log('开始手动添加数据库字段...')
 
     const fixes = [
+      // 为 questions 表支持多选题
+      {
+        sql: `ALTER TABLE questions MODIFY COLUMN correct_answer VARCHAR(10) NOT NULL COMMENT '正确答案：单选A-D；多选为去重排序后的字母串如ACD'`,
+        desc: '扩容 questions.correct_answer 以支持多选'
+      },
+      {
+        sql: `ALTER TABLE questions ADD COLUMN question_type VARCHAR(10) NOT NULL DEFAULT 'single' COMMENT '题型：single/multiple'`,
+        desc: '为 questions 添加 question_type 字段'
+      },
+      {
+        sql: `CREATE INDEX idx_questions_type ON questions (question_type)`,
+        desc: '为 questions.question_type 添加索引'
+      },
       // 为question_sets表添加字段
       {
         sql: `ALTER TABLE question_sets ADD COLUMN category_id INT DEFAULT NULL COMMENT '所属考核类别ID'`,
