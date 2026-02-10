@@ -78,6 +78,7 @@ export async function POST(request: NextRequest) {
       id: q.id,
       questionNumber: index + 1, // 使用新的序号，不再依赖原始的questionNumber
       section: q.section,
+      questionType: (q.question_type || 'single') as 'single' | 'multiple',
       questionText: q.question_text.replace(/^\d+\.\s*/, ''), // 移除题目文本开头的编号
       optionA: q.option_a,
       optionB: q.option_b,

@@ -16,7 +16,9 @@
     "migrate:create-schema": "npx tsx scripts/create-mysql-schema.ts",
     "migrate:data": "npx tsx scripts/migrate-data-to-mysql.ts",
     "migrate:verify": "npx tsx scripts/verify-migration.ts",
-    "migrate:all": "npm run migrate:export && npm run migrate:create-schema && npm run migrate:data && npm run migrate:verify"
+    "migrate:all": "npm run migrate:export && npm run migrate:create-schema && npm run migrate:data && npm run migrate:verify",
+    "seed:frontend-probation-exam": "npx tsx lib/seed/seed-frontend-probation-exam.ts",
+    "test:choice-answer": "npx tsx lib/choice-answer.selftest.ts"
   },
   "dependencies": {
     "@alicloud/dysmsapi20170525": "^4.1.2",

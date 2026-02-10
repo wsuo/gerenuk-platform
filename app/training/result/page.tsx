@@ -10,7 +10,7 @@ import { Separator } from '@/components/ui/separator'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { PlatformFooter } from '@/components/platform-footer'
 import { TrainingResultNavigator } from '@/components/training-result-navigator'
-import { 
+import {
   CheckCircle, 
   XCircle, 
   Award, 
@@ -28,6 +28,7 @@ import {
   BarChart3
 } from 'lucide-react'
 import { isJiaheInterviewCategory, isJiaheInterviewSet } from '@/lib/jiahe-interview-constants'
+import { normalizeChoiceAnswer } from '@/lib/choice-answer'
 
 interface ExamResult {
   recordId: number
@@ -71,6 +72,20 @@ export default function TrainingResultPage() {
   const router = useRouter()
   const timelineRef = useRef<HTMLDivElement>(null)
   const questionRefs = useRef<{ [key: number]: HTMLDivElement | null }>({})
+
+  const formatAnswer = (answer: string) => {
+    const normalized = normalizeChoiceAnswer(answer || '')
+    return normalized ? normalized.split('').join(',') : ''
+  }
+
+  const getSelectedOptionText = (detail: AnswerDetail) => {
+    const selected = normalizeChoiceAnswer(detail.selectedAnswer || '')
+    if (!selected) return '未作答'
+    return selected
+      .split('')
+      .map((opt) => `${opt}. ${detail[`option${opt}` as keyof AnswerDetail] as string}`)
+      .join('；')
+  }
 
   useEffect(() => {
     // 从localStorage加载结果数据
@@ -487,20 +502,20 @@ export default function TrainingResultPage() {
                                   </h4>
                                   <div className="flex gap-2 text-xs">
                                     <span className="text-gray-600">
-                                      正确: <span className="font-medium text-green-700">{detail.correctAnswer}</span>
+                                      正确: <span className="font-medium text-green-700">{formatAnswer(detail.correctAnswer)}</span>
                                     </span>
                                     <span className="text-gray-600">
                                       您选: <span className={`font-medium ${
                                         detail.selectedAnswer === detail.correctAnswer ? 'text-green-700' : 'text-red-700'
                                       }`}>
-                                        {detail.selectedAnswer || '未作答'}
+                                        {formatAnswer(detail.selectedAnswer) || '未作答'}
                                       </span>
                                     </span>
                                   </div>
                                 </div>
                                 <p className="text-sm text-gray-700 mb-3">{detail.questionText}</p>
                                 <div className="text-sm text-gray-600">
-                                  <span className="font-medium">选项:</span> {detail[`option${detail.selectedAnswer}` as keyof AnswerDetail] as string}
+                                  <span className="font-medium">选项:</span> {getSelectedOptionText(detail)}
                                 </div>
                               </div>
                             </div>
@@ -727,11 +742,11 @@ export default function TrainingResultPage() {
                                     {detail.isCorrect ? '✓ 回答正确' : '✗ 回答错误'}
                                   </div>
                                   <p className="text-xs text-muted-foreground mt-1">
-                                    正确: <span className="font-medium text-green-700">{detail.correctAnswer}</span> | 
+                                    正确: <span className="font-medium text-green-700">{formatAnswer(detail.correctAnswer)}</span> | 
                                     您选: <span className={`font-medium ${
                                       detail.selectedAnswer === detail.correctAnswer ? 'text-green-700' : 'text-red-700'
                                     }`}>
-                                      {detail.selectedAnswer || '未作答'}
+                                      {formatAnswer(detail.selectedAnswer) || '未作答'}
                                     </span>
                                   </p>
                                 </div>
@@ -756,8 +771,8 @@ export default function TrainingResultPage() {
                               <div className="space-y-2">
                                 {['A', 'B', 'C', 'D'].map((option) => {
                                   const optionText = detail[`option${option}` as keyof AnswerDetail] as string
-                                  const isSelected = detail.selectedAnswer === option
-                                  const isCorrect = detail.correctAnswer === option
+                                  const isSelected = normalizeChoiceAnswer(detail.selectedAnswer || '').includes(option)
+                                  const isCorrect = normalizeChoiceAnswer(detail.correctAnswer || '').includes(option)
                                   
                                   return (
                                     <div
