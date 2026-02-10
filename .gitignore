@@ -117,3 +117,4 @@ CLAUDE.md
 .codex/
 scripts/
 test/
+.ace-tool/
