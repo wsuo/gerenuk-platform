@@ -18,6 +18,7 @@
     "migrate:verify": "npx tsx scripts/verify-migration.ts",
     "migrate:all": "npm run migrate:export && npm run migrate:create-schema && npm run migrate:data && npm run migrate:verify",
     "seed:frontend-probation-exam": "npx tsx lib/seed/seed-frontend-probation-exam.ts",
+    "seed:jiahe-business-onboarding-exam": "npx tsx lib/seed/seed-jiahe-business-onboarding-exam.ts",
     "test:choice-answer": "npx tsx lib/choice-answer.selftest.ts"
   },
   "dependencies": {
