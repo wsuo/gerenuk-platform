@@ -18,9 +18,10 @@ body {
   box-sizing: border-box;
 }
 
-button, 
-input, 
-textarea, 
+/* checkbox/radio 除外：Radix Checkbox 是 button 元素，44px 最小高度会把 16px 的小方框拉成竖条 */
+button:not([role="checkbox"]):not([role="radio"]),
+input:not([type="checkbox"]):not([type="radio"]),
+textarea,
 select,
 [role="button"] {
   touch-action: manipulation;
